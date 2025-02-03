@@ -1,4 +1,4 @@
-# Introduction
+# Foundations
 
 Data Intensive applications are the ones where we need to deal with a huge amount of data.  For example, typical internet companies like Google, Amazon, Twitter etc.  On the other hand compute (CPU or GPU) intensive applications are the one where the bottleneck is CPU speed.  For example, Crypto Mining, ML applications, etc. where there might just be a few thousand data points, but processing them requires huge amount of compute.
 
@@ -15,13 +15,6 @@ Some of the Load Parameters we ought to consider when trying to improve the non-
 
 We need to carefully calculate the load parameters because our architecture will be completely different for different types of load parameters.  For example, an application serving 3 MB files for millions of users will have a completely different architecture compared to an application serving GB sized files for few users.
 
-## Miscellaneous
-- Shared Nothing Architecture: Distributing load across multiple machines (Horizontal Scaling).
-- Head-of-line Blocking: Few slow requests in queue slowing the following requests, thus making it hard to find which requests to optimize for.
-- Elastic Systems: Systems that can automatically scale if load increases without manual intervention; good for unpredictable loads, else manual is simpler.
-- Adaptability: Agility of data systems.
-- Tail latency Amplification, Monitoring response times for a running time window using approximation algorithms like forward decay, t-digest etc.
-- Query Language Types: Declarative (Ex. sql), Imprative (Ex. Java, Python), Map-Reduce
 
 ## Data Models
 Mainly there are 3: Relational, Document Based, Graph Model.
@@ -111,3 +104,47 @@ Types:
 - Advantages: They support multiple languages, and are human-readable. They are good as data interchange formats.
 - Disadvantages: Ambiguity around encoding of numbers and some characters like comma in csv, Schemas are complicated.
 The binary versions like BSON or WBXML use less space than their corresponding raw formats like JSON or XML.
+4. Thrift and Protocol Buffers:
+- Both of them uses a schema using which data is encoded.
+- To encode one technique is BinaryProtocol, where the encodings have no field names unlike the above ones.  Instead the encoded data contains Field Tags (Aliases) which are numbers and these numbers along with the names appear in the schema definition for compaction. The schema definition is referred to decode.  The other encoding techniques work similarly.
+- How do they handle schema evolution?
+  - The unset values are omitted from the encoded record
+  - Field names can be changed since only tags are referred. But, We cannot change Field Tags.
+  - We can add new fields to the schema with new Field Tag numbers, and old code simply ignores this new Field Tag number since it does not know about this. For Forward compatibility, the datatype annotation tells how many bytes to skip and so the data is correctly read, and Backward compatibility works because field tags are never changed amd have the same meaning.
+  - New field cannot be marked as required, although they can have a Default value. This is because old data will not have this required field.
+  - Required field cannot be removed, and we cannot use this deleted tag number again because some data might still use this tag number
+  - Datatype changes might cause truncation of data.
+5. Avro:
+- Avro also uses a schema to specify the DataStructure using Avro IDL for humans, and a machine-readable JSON format, but it does not use any Tag Numbers. It just concatenates the values together. 
+- To parse the binary data we go in the same order as it is declared in the schema. The schema also tells the Data type. So, Encoder and Decoder should use compatible schemas because order is important.
+- To support Schema evolution, it uses compatible Reader's and Writer's Schema
+- To maintain Forward and Backward compatibility, we can only add or delete a value that has a default value, so that the default value can be used if actual value is not found in the schema where it is missing.
+- Changing the field name can be a bit tricky using aliases and this breaks Forward compatibility.
+- Writer's schema is written only at the beginning of huge files. Writing the schema definition a lot of times will reduce space savings. 
+- One advantage of Avro compared to Thrift or Protobufs is that the schema does not contain any tag numbers. Therefore Avro is friendlier for dynamically generated schemas. For example, if a column is deleted and one added in a DB schema, the writer can simply use this new schema. A old reader who reads this new schema will see that the fields of the record have changed, but since the fields are identified by name, the updated writer's schema can still be matched with the old reader's schema.
+- By contrast, in Thrift and Protobuf, the field tags would likely to be changed manually which is error prone. Even for automatic tools we need to take care of not using the already used Field Tags.
+
+Protobufs, Avro and Thrift use a schema to describe a binary encoding format. Their schema languages are much simpler than JSON or XML which support more detailed validation rules like int should be between 0 and 100, etc. They are compact compared to the binary JSON variants, simpler to implement and use. Plus, schema evolution provides same kind of flexibility as schemaless or schema-on-read JSON DBs while also providing better guarantees about data and better tooling (to generate classes for programming, human viewing etc.).
+
+
+## Modes of Dataflow
+1. Through DBs:
+- Different processes with different versions might be using the same DB. To support Backward Compatibility, use null for unknown fields of old rows.
+- Use Avro for schema evolution, Parquet for analytics.
+2. RPCs (Remote Procedure Calls):
+- RPCs try to make remote requests look more like a local function call, but this design philosophy called Location Transparency is flawed because network requests might fail or timeout without providing any error message unlike local function calls. Plus, the client and server might be implemented in different programming languages.  For example, Java EJB, RMI, CORBA etc.
+- REST is still better for experimentation, debugging, and has better tooling. RPC is mainly used within an org, and REST in other places mainly.
+Backward and Forward compatibility is maintained based on encoding format it uses
+3. Message Passing:
+- No encoding is enforced by message broker, so we are free to use an encoding that is Forward and Backward compatible. This way the clients and servers can be updated independently.
+4. Distributed Actor Framework (DAF):
+- In DAF, Logic is encapsulated in the actors and communication is achieved via message passing.
+
+## Miscellaneous
+- Shared Nothing Architecture: Distributing load across multiple machines (Horizontal Scaling).
+- Head-of-line Blocking: Few slow requests in queue slowing the following requests, thus making it hard to find which requests to optimize for.
+- Elastic Systems: Systems that can automatically scale if load increases without manual intervention; good for unpredictable loads, else manual is simpler.
+- Adaptability: Agility of data systems.
+- Tail latency Amplification, Monitoring response times for a running time window using approximation algorithms like forward decay, t-digest etc.
+- Query Language Types: Declarative (Ex. sql), Imprative (Ex. Java, Python), Map-Reduce.
+- Some data stores like Redis are also used as message queues, and some message queues like Kafka guarantee data durability like data stores.
