@@ -101,7 +101,7 @@ Types:
 - Good to use for temporary situations.
 2. Formats used in APIs like JDBC and ODBC to send data stored in DBs over the network.
 3. JSON, XML, CSV and their Binary Variants:
-- Advantages: They support multiple languages, and are human-readable. They are good as data interchange formats.
+- Advantages: They support multiple languages, and are human-readable. They are good as data interchange formats.  Also, they are verbose but they can handle more detailed rules like an integer should be between 0 and 100.
 - Disadvantages: Ambiguity around encoding of numbers and some characters like comma in csv, Schemas are complicated.
 The binary versions like BSON or WBXML use less space than their corresponding raw formats like JSON or XML.
 4. Thrift and Protocol Buffers:
@@ -148,3 +148,149 @@ Backward and Forward compatibility is maintained based on encoding format it use
 - Tail latency Amplification, Monitoring response times for a running time window using approximation algorithms like forward decay, t-digest etc.
 - Query Language Types: Declarative (Ex. sql), Imprative (Ex. Java, Python), Map-Reduce.
 - Some data stores like Redis are also used as message queues, and some message queues like Kafka guarantee data durability like data stores.
+
+# Distributed Data
+We might want to distribute our Database from a single machine to multiple machines because it improves the following aspects of our application:
+
+1. Scalability: Distributing traffic to multiple machines improve throughput.
+2. Fault-Tolerance/High-Availability: Our systems should reasonably work as a whole even when a few machines fail.
+3. Latency: Latency is improved by serving requests from DataCenters that are geographically closer to clients, so that the requests and responses don't have to travel half way around the world.
+
+Distributing data across multiple machines is called Horizontal Scaling, or Scaling Out, or Shared Nothing Architecture (because CPUs/RAM/Disc is not shared among machines). There are some fundamental problems that we need to handle with Distributed Systems like: Replica Consistency, Availability, Durability, and Latency, among others.
+
+A different approach to scaling to higher load is to use a single more powerful machine with lots of storage and RAM (called Vertical Scaling or Scaling up), but the problem with this is that the cost grows faster than a linear function here.
+
+Depending on our application, either Vertical or Horizontal scaling can work better for us i.e. there's no one silver bullet.
+
+Distributing data across nodes is commonly achieved either using Replication, or Partitioning, or a combination of both.
+
+## Replication
+Replication means keeping a copy of the same data on multiple machines. Replication is simple except that we need to handle changes to the replicated data too, and that makes it challenging to achieve.
+
+### Leaders and Followers
+Every write to the Database needs to be processed by all the replicas. The most common solution to achieve this is called Leader-based replication (or Active-Passive or Master-Slave). Here, one of the replicas is designated as the leader (or master, primary etc.) and all writes go to this replica only. The other replicas are called followers (or read-replicas, slaves, secondaries, hot standbys etc.).
+
+Whenever the leader receives a new write, it writes it to its local storage and also send these changes to the followers as part of a Replication Log or Change Stream. The followers use this log to write all the data in the same order as they were processes on the leader. Here the client must write to the leader, but read can be requested from any replica.
+
+This is the default behaviour in many DBs like MySQL, MongoDB etc. This is not only used in DBs but also distributed message brokers like Kafka for high available queues, and some network file systems and replicated block devices.
+
+This pattern is useful for web applications where number of reads is far more compared to write -- reads can be served from multiple replicas.
+
+### Synchronous vs Asynchronous Replication
+#### Synchronous
+- The leader waits for the follower's confirmation before reporting success to the client and before making the write visible to the other clients.
+- Advantage: The follower is guaranteed to have an up-to-date copy of the data.
+- Disadvantage: The leader must block all writes till the synchronous replica responds, which it does typically in <1s, but could take more time due to network delays or while recovering from a crash.
+
+#### Asynchronous
+- The leader sends the write messages to the followers and reports success to the client, without waiting for a confirmation from the followers.
+- Advantage: Even if all followers fail, the leader can support writes.
+- Disadvantage: Not durable, because if leader fails then non-replicated writes are lost even if they are confirmed to the client.
+- Eventual Consistency: Data may not be immediately updated in the follower nodes, but eventually the followers catch up after the Replication Lag Time.
+
+In synchronous replication, any one node outage can halt the entire system, so in practice typically 1 follower is made synchronous and others as asynchronous (semi-synchronous mode). If the synchronous node become slow or fails, then another asynchronous follower is made synchronous.
+
+To setup new followers, take a snapshot of the leader at some point in time when it was consistent (using log sequence number or binlog coordinates for example), copy that consistent snapshot to the followers, and then the followers can request and perform all writes since the snapshot.
+
+### How to Handle node outages?
+- When followers fail: After coming back up, followers can request changes from their leader starting from the time that is in its write change log. The write change log tells the follower the write after which it crashed.
+- When leaders fail, We can use the Failover process.  Choose a new leader if existing leader is dead. To choose a new leader we can use an election algorithm, or using a previously chosen Controller node. However this can lead to a Consensus Problem, a topic discussed later on.
+- Problems with Failover:
+  - In async replication, we might have to discard the writes of the old leader which were not synched to avoid conflicts and it could be dangerous.
+  - Split Brain Problem: Both the old and new reader thinks that they are the only leader, causing lost writes or conflicts.
+
+### Techniques to implement Replication on Leader-based systems
+1. Statement Based:
+- Leader logs every write statement that it executes. Ex. INSERT, UPDATE commands in relational DBs
+- Problems: Non deterministic functions like now(), datetime() gives different values when ran in different machines; also some problems with triggers and stored r=procedures.
+2. Write Ahead Log (WAL):
+- Problem: WAL is expressed in a low level (like bytes), so changing storage engines or DB versions become difficult.
+3. Logical (Row based):
+- Here change granularity is at row level, and the process is called **Change Data Capture**.  This can also be used to send data to other places like a warehouse.
+4. Trigger Based:
+- This is done at the application level unlike the above ones, and it provides flexibility if we want to only replicate subset of the data.
+
+### Replication Lag Anomalies
+The lag time in replicating the data can confuse users if they query from a node that has not received the new data.
+
+Workarounds:
+1. Read your own writes (Read after write consistency): For the user who wrote the data, read it back from the leader, otherwise they might think that the data is lost.  For other users, they can read from the replicated nodes.
+2. Monotonic Reads: User will not see old data after having seen recent data once.  To achieve this, we can make the user read from the same replica by keeping a map of ip and hostname for example.
+3. Consistent Prefix Reads: Causally Dependent things like Question and Answer should appear in the same order.  To achieve this, we can make the causally dependent things to be written to the same node, or use algorithms to handle these things.
+
+### Multi-Leader Replication (Master-Master or Active/Active)
+- In Multi-Leader replication, writes are allowed in multiple nodes, and the leaders need to behave as leaders and followers simultaneously.  This is more robust than single-leader replication because the system remains up even if one leader goes down.  
+- Problem: We need to handle concurrent writes when the same data is being updated in multiple nodes.
+- Handling Write Conflicts:
+1. Avoidance: Try to make all writes to the same record go to the same node.
+2. Last Write Wins: Attach a unique monotonically increasing ID to each write and store the latest value.  The problem is that it might lead to data loss.  Ex. used by Cassandra.
+3. Custom Logic: Handle using custom logic either during read (ex. prompting user to re-insert the data), or during write (ex. Bucardo).
+4. Further Research: Conflict-Free Replicated Datatypes (CRDTs), Mergeable Persistent Data Structures, Operational Transformation algorithm etc.
+
+#### Multiple Leader replication topologies
+1. All-to-All
+2. Circular: writes forwarded to neighbour along with own writes
+3. Star: A designated node sends write to all nodes.
+
+
+### Leaderless Replication
+- In these systems, there are no leaders and all the nodes can accept writes. These systems are also called Dynamo-style because Amazon used it for DynamoDB.
+- To catchup on the writes after a node goes down, 2 methods are used:
+1. Read Repair: When a client makes a read from several nodes in parallel, it can detect and correct stale data, if any.
+2. Anti-entropy: A background process continuously looks for and corrects stale data in an unordered fashion.
+- Detecting Concurrent Writes: Include a version number with each key which increases with each write.  Use **Version Vectors** when multiple nodes are writing, and these version vectors keep all version numbers for all nodes that are writing.
+- Quorums are used to make sure that the latest data is read. If there are n replicas, then the write must be processed by at least w nodes, and reads must be processed by at least r nodes.  
+  - So, Dynamo-style DBs are used in situations which can tolerate Eventual Consistency. To achieve stronger guarantees in Dynamo-style systems we need transactions or consensus. 
+  - If nodes go down then we can use **Sloppy Quorums** to temporarily hold data in a temporarily designated node.
+
+## Partitioning (also called Sharding/region/vnode/tablet)
+- Partitioning/Sharding is required to achieve scalability, especially when storing and processing data on a single machine remains no longer feasible. 
+- Normally, partitions are defined in such a way that each record/document/row lives in exactly one partition. In effect, each partition is a mini Database of its own, even though it can support operations that can touch multiple partitions at the same time. 
+- Partitioning is usually coupled with Replication for Fault-Tolerance. A node may store more than 1 partitions, and typically the leader and followers live on different nodes. 
+- Request routing is done via Round Robin (request randomly sent to node and redirection is used to find the correct node) or using a central coordinator like Zookeeper.
+
+### Partition Strategies (Goal - Distribute keys fairly among nodes)
+1. Random: 
+- Problem: We might have to query all partitions in parallel because we might not know where the queried key lives.
+2. By Key-ranges:
+- Each partition keeps a contiguous range of keys, and we also keep track of which ranges belong to which partition.
+- Disadvantage: Risk of hotspots if the application often access keys that are closer in the sort order.
+- This technique is used by BigTable, HBase, MongoDB etc.
+3. Keys generated using Hash:
+- Choose the hash function properly to ensure fair data distribution.
+- We can then store the ranges of these Hash values using the Key-Range partitioning technique. The partition boundaries can be evenly spaced or chosen pseudo-randomly (Consistent Hashing).
+- Consistent Hashing randomly chooses partition boundaries to avoid central control or distributed consensus which are hard to achieve.
+- Disadvantage: Range queries perform bad because the storage order is lost.
+- Note: If there are many reads and writes for the same key, for example for a celebrity, add a 2 digit random number to the key so that the same key is distributed to multiple partitions.
+
+### Partition of Secondary Indexes
+A secondary index does not identify a row uniquely, but it is used to search for a particular value in a row/document efficiently. For example, all articles related to Travel.
+
+There are 2 main ways to partition a DB with secondary indexes:
+1. Document Partitioned (local index): Secondary indexes are stored in the same partition as the Primary key and the actual document.  Ex: MongoDB
+- Disadvantage: Reads must read all partitions.
+2. Term Partitioned: A global index covers data in all partitions (which can be further partitioned).  Here reads become fast, but writes might become slow. 
+
+### Rebalancing Partitions
+Rebalancing might be required when a node fails or we add more resources to handle increased load or datasize. This might require us to shift the load from one node to another, while continuing to support reads and writes.
+
+Strategies:
+1. hash mod n: In this strategy we simply put the keys in node x where x = (hash(key) modulus n).  
+- Disadvantage: If number of nodes (n) changes, then we might have to move around a lot of keys. 
+2. Fixed number of partitions: Here we create more partitions than required and assign multiple partitions to each node. If a new node joins then it takes a few partitions from each node to create an even distribution.
+3. Dynamic: Partitions are created dynamically. If a partition exceed some threshold size then it is divided into two halves, and small partitions are merged. Ex: HBase
+4. Partitions proportional to number of nodes:
+In this strategy, the size of partitions grow proportional to the size of the dataset, but when we increase the number of nodes the size of partitions become smaller again. When a new node joins the cluster it chooses a fixed number of partitions and takes half of the values from these. Averaging over a large number of times keeps the partition sizes even. For example, Cassandra.
+
+
+## Transactions
+Transactions are useful to simplify applications by handling partial writes and race conditions.
+
+### ACID
+- Atomicity: All writes in the transaction either happen or not.  If a node fails halfway in a transaction, the writes written so far must be discarded.
+- Consistency: DB should be consistent before and after a transaction. For example, credit and debit amount must match. It can be achieved using Triggers for example.
+- Isolation: When multiple transactions are running concurrently, the end result should be as if when they ran serially.
+- Durability: Once a transaction commits, all data is written and never lost, even if there's hardware failure. It can be done by writing to non-volatile memory, or using a Write Ahead Log for recovery.
+
+Systems that do not maintain ACID are sometimes called BASE (Basically Available, Soft State, and Eventual Consistency).
+
