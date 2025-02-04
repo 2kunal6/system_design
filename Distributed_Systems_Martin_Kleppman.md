@@ -360,3 +360,49 @@ Techniques to implement Serializable Isolation:
 - 2PC implementations like 2 phase locking don't perform well, and serial executions do not scale well. 
 - SSI provides full serializability with a small performance penalty compared to Snapshot Isolation. SSI is new, so its adoption is still not widespread. 
 - Compared to 2 phase locking or serializable executions which are pessimistic, this is an optimistic algorithm. Instead of blocking if something dangerous could happen, txns continue anyway hoping that everything will turn out good in the end. When a txn wants to commit the DB checks whether isolation was violated, and if so, the txn is aborted and has to be retried. Only txns that executed serially are allowed to commit.
+
+
+# Problems with Distributed Systems
+Distributed Systems are hard because it works with unreliable network, and we can't even know if something succeeded for sure because the response might be lost.  Also, we need to keep running Distributed Systems as a whole even if some nodes fail.  In contrast, in High Performance Computing we can kill the job if something fails and restart it from some snapshot.
+1. Detecting Faults: Detecting faults might be achieved using **timeouts** but we need to set it properly.
+2. Unreliable Clocks: Even using sophisticated systems like **Network Time Protocol (NTP)** might still have some seconds of variation with the actual clock.  So it becomes difficult to find which event occurred first if clocks in 2 machines are not in sync.  Logical Clocks based on incrementing counters are a safer alternative for ordering events rather than the unreliable time-of-day quartz clock. Logical clocks do not measure time, just the order of events.
+3. Process Pauses: Long process pauses can be bad if process pauses after acquiring lock for something (like Leader Lock).  To deal with it we can plan processes like Garbage Collection which takes a long time at regular intervals.
+4. Fencing Locks: On wakeup from process pause the old leader might still think that it is the new leader, but the Quorum decided to replace the process-paused leader already.  To overcome this split-brain (multiple leaders), we can attach a monotonically increasing ID to each locks, and this value can be used to decide the latest leader.
+5. Byzantine Faults: A system is Byzantine Fault Tolerant if it continues to operate correctly even if some of the nodes are malfunctioning and not obeying the protocol, or if malicious attackers are interfering the network.  Protection from Byzantine Faults might require hardware support. For web apps we can use input validation to prevent it. In peer-to-peer network where there is no central authority, Byzantine Faults may occur more frequently.
+
+# Linearizability
+- One of the strongest consistency models.  Eventual Consistency is a weak guarantee because it does not say anything about when a data would be eventually available.
+- In Eventual Consistency 2 different replicas may provide different answers if one of them is lagging behind and this can confuse the users. Linearizability gives only one response. It is also called Atomic/Strong/Immediate/External Consistency. The basic idea is to make a system appear as if there is only one copy of the data and all operations on it are atomic.
+- Unlike Serializability, Linearizability does not group operations together. The read and write request could be independent and thus write skew cannot happen. A DB may provide both Serializability and Linearizability, and this combination is called strict-serializability or strong one-copy serializability. Implementations of Serializability based on 2 phase locking or actual serializability are typically linearizable, but Snapshot Isolation Serializability does not guarantee that.
+- Linearizability is useful for Leader Election, reliable counter increments etc.
+- Implementation: If only a single node holds one copy of the data and all operations on this is atomic, then it might be lost/inaccessible if the node fails - and hence not fault tolerant. The most common way to make a system fault-tolerant is to use replication. Here's a discussion of if replication can be made linearizable:
+1. Single-Leader Replication: They are potentially linearizable if we read from the leader or from the synchronous followers.
+2. Consensus Algorithms
+3. Multi-Leader Replication: Linearizable even if network interruption happens between 2 datacenters, because the clients just needs to connect to it's "home" datacenter.
+4. Leaderless Replications are probably not linearizable because of concurrency issues.
+5. Strict Quorums: Strict Quorums are not linearizable due to variable networks delays; and because the reads may read from different set of nodes.   It is possible to make dynamo-style quorums at the cost of reduced performance; a reader must perform read repair synchronously and a writer must read the latest state of quorum before sending its writes. But this makes only read and write linearizable, not compare-and-set.
+
+# The CAP Theorem
+Choose any 2 between Consistency, Availability, and Partition Tolerance. Since Partition tolerance is beyond our control we need to choose one of the other 2.
+
+## Sequence Number Ordering
+We can use sequence numbers to order events. They are counters which is incremented on every operation. Thus, every operation has an unique sequence number and we can always compare two sequence numbers. We can create sequence numbers that is consistent with causality. For single-leader the leader can simply assign a monotonically increasing number to each operation in the replication log, and the followers can simply use this order. For leaderless and multi-leader systems, we use Lamport Timestamps.
+
+Lamport Timestamps are a pair of (counter, nodeId). 
+
+## Distributed Transactions and Consensus
+Consensus is required for Leader Election and Atomic commit.
+1. 2 Phase Commit (2PC):
+- It is the most common way of solving the problem of atomic commit. On single machines atomic commit is achieved using Write Ahead Log and recovering using it in case of failures, but in distributed systems, the commit may happen in some nodes but not in others due to different reasons, thus making data inconsistent across nodes. 
+- 2PC achieves atomic commit across multiple machines i.e. either all nodes commit or abort. Here the commit/abort process is split into 2 phases. It uses a Coordinator or Transaction Manager. 
+- A 2PC txn begins with the app reading and writing data on multiple DB nodes (called participants), as normal. When the application is ready to commit, the coordinator begins Phase 1: it sends a prepare message to all nodes asking them if they can commit or not. If it hears all say yes then it sends a commit message to all in phase 2 and the commit happens, else aborts.
+2. Three-phase commit (3PC): 2PC is blocking because participants need to wait for coordinator recovery and during that time no one can read/write because the rows are locked. 3PC is non-blocking but it assumes bounded delay of network.
+3. Epoch-Numbering: Within each epoch the leader is unique.
+
+
+## Membership and Coordination Services
+- Zookeeper, etcd etc. are "distributed key-value services" or "coordination and configuration services". They are designed to hold small amounts of data that can fit entirely in memory (although they still write to disk for durability). This small amount of data is replicated across all nodes using a fault-tolerant total order broadcast algorithm.
+- Zookeper uses fencing token to handle process pauses. Client maintains a long-lived session with Zookeeper and they occasionally bounce heartbeats and in this way Zookeeper make sure if a node is dead. Normally data kept in zookeeper is slow changing like alive_nodes+their-ip. It also offers service discovery.
+
+
+# Derived Data
