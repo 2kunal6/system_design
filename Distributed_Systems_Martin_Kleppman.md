@@ -294,3 +294,69 @@ Transactions are useful to simplify applications by handling partial writes and 
 
 Systems that do not maintain ACID are sometimes called BASE (Basically Available, Soft State, and Eventual Consistency).
 
+### Single-Object Writes
+Atomicity and Isolation also apply when a single object is changed. For example, if node fails in between writing a 100kb JSON file.  
+
+Atomicity can be achieved using:
+1. Using a log for crash recovery
+2. locks
+3. Removing operations doing read-modify-write cycle
+4. Compare-and-Set operation which allows write only when it is not being concurrently modified (** light-weight transaction**)
+
+### Multi-Object Transactions
+Multi-object transactions are required if several pieces of data needs to be kept in sync. They need to determine which Read and Write operations belong to the same transaction. 
+
+### Isolation Levels
+1. Read committed (Weak)
+2. Snapshot Isolation (Weak)
+3. Serializable (Strong): Only Serializable Isolation protects us from all these race conditions.
+
+These isolation levels are characterized by various types of race conditions like Dirty Reads, Dirty Writes, Read Skew, Lost Updates, Write Skew, Phantom reads etc. Different isolation levels guarantee different levels of race conditions that we can avoid.  Applications can make use of these isolation level guarantees provided by the DB to keep its code simple.
+
+#### Read Committed
+- It guarantees no dirty reads (only committed data is read) and no dirty writes (while writing we only overwrite committed data).
+- Transactions running at read committed isolation level usually delays the second concurrent write until the first transaction commits or aborts.
+- Problem: Read Committed isolation level however still does not prevent lost updates when a txn modifies after a txn's read but before it's write.
+- Most commonly, DBs prevent dirty writes by allowing only 1 transaction to acquire row-level locks.  Read locks cannot acquire lock until write finished.
+
+
+#### Snapshot Isolation and Repeatable Read
+- Read committed isolation suffers from an anomaly called 'Non Repeatable Read' or 'Read Skew'. This happens in the following scenario when we just get unlucky with our read timings. If we read the data again, then we will see correct and consistent data.
+![read_skew.png](../images/read_skew.png)
+- Snapshot isolation is the most common solution to this problem, where each transaction reads from a consistent state of the DB - each transaction sees all data that was committed at the start of the transaction. It does not care if that transaction has committed during the actual read; it just uses the value that was at the start of the txn. 
+- Snapshot Isolation implementations typically use write locks to prevent dirty writes, but reads do not require locks. 
+
+#### Preventing Lost Updates
+The problem of Lost Updates can occur in a read-modify-write cycle where a value is first read, then updated (potentially based on the previous read), and then written. For example, an account balance is read, updated based on the value and written back. In this scenario one of the writes might be lost because the 2nd write does not consider the first modification.
+
+Solutions:
+1. Atomic writes: Many DBs provide atomic update operations using UPDATE keyword.  Atomic writes takes locks or uses a single thread.
+2. Explicit Locking: Application explicitly locks all objects that are going to be updated using the 'FOR UPDATE' clause which locks all objects returned by a select query. 
+3. Automatically detecting Lost updates: Above methods are sequential. This method allows the transactions to execute in parallel and if a lost update is detected then abort the transaction.
+4. Compare and Set: This atomic operation allows update to happen if the value hasn't yet change since you last read it.
+5. Conflict Resolution and Replication: This is used for multi-leader or leaderless replications, which allows concurrent writes to happen and resolve at application level while reading (among other techniques discussed later).
+
+#### Write Skew and Phantoms
+Write Skews can occur for example in the following figure where a check is made based on some global condition, but then the write itself can change the global condition for other txns running concurrently. In the following figure, it is expected that count never becomes 0, but it can become 0 nonetheless with txns operating concurrently.
+![write_skew.png](../images/write_skew.png)
+
+Solutions to Write Skew:
+1. Atomic single-object solutions does not help because multiple objects are involved.
+2. Implement constraints using multiple objects if possible, for example using triggers or materialized views etc.
+3. If using serializable isolation level is not possible, then next best option is to use 'FOR UPDATE' clause to lock rows on which the transaction depends.
+
+#### Serializability
+Techniques to implement Serializable Isolation:
+1. Actual Serial Execution
+- Here one transaction is executed one at a time serially on a single thread.
+- Disadvantage: It's throughput is limited to a single CPU core. 
+2 Phase Locking (2PL):
+- Several transactions are allowed to read concurrently as long as no transaction is writing to it. Exclusive locks are required for writes.
+- This is in contrast to Snapshot Isolation where readers and writers never block each other. This difference makes 2PL overcome all the race conditions discussed earlier including lost updates and write skew.
+- To read, a Txn must obtain a shared lock. To write, a Txn must obtain an exclusive lock. 
+- Predicate Locks:  Predicate Locks are used to stop Phantoms causing Write Skew.  It works similar to shared/exclusive lock but the locks does not belong to an object/row, it belongs to all objects that match a search condition.  Predicate Locks do not perform well, and so Index-range Locks are used more commonly.
+- Index-Range Locks: Here a greater set of predicates is matched. This approximation of the search condition is attached to one of the indexes (either the room_id or time index). Now, if another txn wants to modify this same overlapping condition then it will see the shared lock on the index, and consequently it will wait for that lock to be released.
+3. Serializable Snapshot Isolation (SSI):
+- 2PC implementations like 2 phase locking don't perform well, and serial executions do not scale well. 
+- SSI provides full serializability with a small performance penalty compared to Snapshot Isolation. SSI is new, so its adoption is still not widespread. 
+- Compared to 2 phase locking or serializable executions which are pessimistic, this is an optimistic algorithm. Instead of blocking if something dangerous could happen, txns continue anyway hoping that everything will turn out good in the end. When a txn wants to commit the DB checks whether isolation was violated, and if so, the txn is aborted and has to be retried. Only txns that executed serially are allowed to commit.
