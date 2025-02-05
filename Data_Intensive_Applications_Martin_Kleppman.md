@@ -1,8 +1,8 @@
 # Foundations
 
-Data Intensive applications are the ones where we need to deal with a huge amount of data.  For example, typical internet companies like Google, Amazon, Twitter etc.  On the other hand, compute intensive applications are the one where the bottleneck is CPU/GPU speed.  For example, Crypto Mining, ML applications, etc. where there might just be a few thousand data points, but processing them requires huge amount of compute.
+**Data Intensive applications** are the ones where we need to deal with a huge amount of data.  For example, typical internet companies like Google, Amazon, Twitter etc.  On the other hand, **Compute Intensive applications** are the one where the bottleneck is CPU/GPU speed.  For example, Crypto Mining, ML applications, etc. where there might just be a few thousand data points, but processing them requires huge amount of compute.
 
-To handle Data Intensive applications we typically use NoSQL, Message Brokers, Caches, Search Indexes, Batch Processing, Stream Processing, and so on.  The following topics will help us understand the different techniques/concepts, and guide us in choosing the right technology to make our application scalable, highly available, and easily maintainable.
+To handle Data Intensive applications we typically use **NoSQL, Message Brokers, Caches, Search Indexes, Batch Processing, Stream Processing**, and so on.  The following topics will help us understand the different techniques/concepts, and guide us in choosing the right technology to make our application scalable, highly available, and easily maintainable.
 
 ### Non-Functional Requirements
 The 3 most important qualities of a Software System are (others being Security, Compliance etc.):
@@ -33,7 +33,7 @@ To choose the correct data model for our application, we need to understand the 
 #### Document DB
 - They use a tree-like structure.  For example, MongoDB, RethinkDB, CouchDB, etc. 
 - Advantages:
-  - They are good for self-contained data (one-to-many relationships) like a LinkedIn profile for a person.  It does not require joins to fetch details about a person's LinkedIn profile.  Loading this entire self-contained data in one go could provide us good performance.
+  - They are good for **self-contained data** (one-to-many relationships) like a LinkedIn profile for a person.  It does not require joins to fetch details about a person's LinkedIn profile.  Loading this entire self-contained data in one go could provide us good performance.
   - They are good when our schema needs to change frequently, because we use schema-on-read.  For Relational DB, changing schema requires downtime, and changes could be hard.
   - They are closer to application's data structures, and we might not need an intermediary like Hibernate or ibatis.
   - The poor support of joins might not be a problem if our queries can do without joins. 
@@ -67,89 +67,94 @@ To retrieve data faster we use Indexes.  There are multiple ways in which we can
 - Additional metadata that helps with faster data lookup.  But, we cannot use indexes everywhere because it degrades data insertion speed.
 - Types of Indexes:
   - Hash based: 
-  - Key-Val data is stored in append-only log, and an offset to the data in an in-memory hashmap.  Splitting and merging of the log files are done for higher performance.
-  - Advantage: It offers high performance reads, writes, and updates if all keys can fit in the RAM.
-  - Disadvantage: Bad for range queries. 
-- SSTables (Sorted String Tables):
-  - We keep the key-value pairs sorted by key (using AVL trees), unlike append-only logs.  On DB crash, the data in memory might be lost, so we store this data in an append only log file which can be used for recovery.
-  - Advantage: High write throughput since disk writes are sequential.
-  - A similar concept is used in Cassandra and Lucene. 
-- B Trees:
-  - Most popular and is not log-based unlike earlier ones.
-  - Like SSTables it keeps key-value pairs sorted by key for efficient lookup and range queries but unlike Log-structured which writes to variable-sized segments sequentially, it breaks down the DB into fixed size blocks called pages and reads or writes are performed one page at a time. This choice is due to underlying hardware's design which is also arranged in fixed size blocks. Each page can be identified using an address which allows one page refer to another -- like pointers on disk. The pages can be thought to be arranged in a Tree structure (with light locks on the tree for concurrency).
-  - For crash recovery, a Write Ahead Log (WAL) is used. 
-- Multi Column indexes:
-  - Multiple columns are concatenated as 1 key, and R-trees are used.  For example: Geospatial DBs, where latitude and longitude are merged as 1 key. 
-- Full Text search and Fuzzy Indexes:
-  - To handle this type of searches, for example in Lucene, the in-memory SSTable like index is designed as a finite state automaton over the characters similar to a Trie, and then Levenstein automaton and Edit distance algorithms are used.
+    - Key-Val data is stored in an append-only log, and an offset to the data in an in-memory hashmap.  Splitting and merging of the log files are done for higher performance.
+    - Advantage: It offers high performance reads, writes, and updates, if all keys can fit in the RAM.
+    - Disadvantage: Bad for range queries. 
+  - SSTables (Sorted String Tables):
+    - We keep the key-value pairs sorted by key (using AVL trees), unlike append-only logs.  On DB crash, the data in memory might be lost, so we store this data in an append only log file which can be used for recovery.
+    - Advantage: High write throughput since disk writes are sequential.
+    - A similar concept is used in Cassandra and Lucene. 
+  - B Trees:
+    - Most popular technique, and it is not log-based unlike earlier ones.
+    - Like SSTables it keeps key-value pairs sorted by key for efficient lookup and range queries but unlike Log-structured which writes to variable-sized segments sequentially, it breaks down the DB into fixed size blocks called pages and reads or writes are performed one page at a time. This choice is due to underlying hardware's design which is also arranged in fixed size blocks. 
+    - Each page can be identified using an address which allows one page refer to another -- like pointers on disk. The pages can be thought to be arranged in a Tree structure (with light locks on the tree for concurrency).
+    - For crash recovery, a **Write Ahead Log (WAL)** is used. 
+    - Advantages:
+      - B-Trees have index stored at only one place - helps with concurrency.
+      - Faster for reads.
+  - Multi Column indexes:
+    - Multiple columns are concatenated as 1 key, and R-trees are used.  For example: Geospatial DBs, where latitude and longitude are merged as 1 key. 
+  - Full Text search and Fuzzy Indexes:
+    - To handle this type of searches, for example in Lucene, the in-memory SSTable like index is designed as a finite state automaton over the characters similar to a Trie, and then Levenstein automaton and Edit distance algorithms are used.
 
-#### B-Trees vs LSM-Tress
-- LSM-Trees are faster for writes whereas B-Trees are thought to be faster for reads.
-- B-Trees have index stored at only one place - helps with concurrency.
 
 ## In-memory DBs
-In-memory DBs keep small enough datasets entirely in-memory, potentially distributed across multiple machines.
-Some in-memory DBs like Memcached are intended to be used as cache, so it is acceptable to lose data on machine restart but some others offer durability using special hardware like battery-powered RAM or by keeping snapshots, or writing to logs.
-There are some Relational In-memory DBs too like Memsql, VoltDB, Oracle times-ten.
+- In-memory DBs keep small enough datasets entirely in-memory, potentially distributed across multiple machines.
+- Some in-memory DBs like Memcached are intended to be used as cache, so it is acceptable to lose data on machine restart but some others offer durability using special hardware like battery-powered RAM or by keeping snapshots, or writing to logs.
+- There are some Relational In-memory DBs too like Memsql, VoltDB, Oracle times-ten.
 
 ## Transaction Processing vs Analytics
 - Unlike OLTP, Analytics queries scan huge number of records, but typically only reading few columns at a time. Data Warehouses are used to support these queries.
 - Schemas for Analytics:
-  - Star (majorly used): At the center of a Star schema is a fact-table (potentially with 100s of columns) and every row here is an event at a timestamp. Every column is either a description of the event or foreign-key references to dimensional-tables which are more details about those columns like product details, country_id details etc. 
+  - Star (majorly used): At the center of a Star schema is a fact-table (potentially with 100s of columns) and every row here is an event at a timestamp. Every column is either a description of the event or foreign-key references to dimensional-tables which are more details about those columns.
   - Snowflake schema: similar to Star schema but dimensional tables are further divided into sub-dimensional tables here.
-- Column-Oriented Storage: In OLTP DBs entire row is stored together, so when we query entire rows with needless columns are also loaded. On the other hand, Columnar DBs store entire columns together, and for analytics queries where we use a few columns only those columns are loaded, thus making it efficient for analysis.
-  - They are compressed using bitmap encoding to save desk space, and uncompressed using Vectorized processing (i.e. using tight loops).
+- Column-Oriented Storage: In OLTP DBs entire row is stored together, so when we query, entire rows with needless columns are also loaded. On the other hand, Columnar DBs store entire columns together, and for analytics queries where we use a few columns only those columns are loaded, thus making it efficient for analysis.
+  - In Columnar DBs, Data is easier to compress using bitmap encoding (saves desk space), and uncompressed using Vectorized processing (i.e. using tight loops).
 - Data Cubes and Materialized views: It stores some pre-computed values that are used frequently like AVG, MIN, MAX etc. so that we don't have to compute them each time. Sometimes data is also pre-computed at a higher level of granularity so that the less granular values like MIN, MAX can be calculated along with more different types of queries. For example, we can store the count for each day, and this can support queries for daily/weekly/monthly/yearly counts.
 
 ## Encoding and Evolution
-Application changes might require changes in the Data format or Schema. But, to support rolling upgrade (or staged rollout -- changes to nodes in phases, not at once) we need to support Backward compatibility (new code can read old data), and Forward compatibility (old code can read data written by new code). For Backward compatibility the new code has to put in suitable logic for old data, and for Forward compatibility the code has to keep considering the new Data Format or Schema changes for a long period that will be made by future code.
+Application changes might require changes in the Data format or Schema. But to support rolling upgrade (or staged rollout -- changes to nodes in phases, not at once) we need to support Backward compatibility (new code can read old data), and Forward compatibility (old code can read data written by new code). For Backward compatibility the new code has to put in suitable logic for old data, and for Forward compatibility the code has to keep considering the new Data Format or Schema changes for a long period that will be made by future code.
 
 Types:
-1. Language-Specific:
-- Advantage: less additional code
-- Disadvantage: difficult to integrate with other languages, forward and backward compatibility issues, less efficient.
-- For example, Java's Serializable class. 
-- Good to use for temporary situations.
-2. Formats used in APIs like JDBC and ODBC to send data stored in DBs over the network.
-3. JSON, XML, CSV and their Binary Variants:
-- Advantages: They support multiple languages, and are human-readable. They are good as data interchange formats.  Also, they are verbose but they can handle more detailed rules like an integer should be between 0 and 100.
-- Disadvantages: Ambiguity around encoding of numbers and some characters like comma in csv, Schemas are complicated.
-The binary versions like BSON or WBXML use less space than their corresponding raw formats like JSON or XML.
-4. Thrift and Protocol Buffers:
-- Both of them uses a schema using which data is encoded.
-- To encode one technique is BinaryProtocol, where the encodings have no field names unlike the above ones.  Instead the encoded data contains Field Tags (Aliases) which are numbers and these numbers along with the names appear in the schema definition for compaction. The schema definition is referred to decode.  The other encoding techniques work similarly.
-- How do they handle schema evolution?
-  - The unset values are omitted from the encoded record
-  - Field names can be changed since only tags are referred. But, We cannot change Field Tags.
-  - We can add new fields to the schema with new Field Tag numbers, and old code simply ignores this new Field Tag number since it does not know about this. For Forward compatibility, the datatype annotation tells how many bytes to skip and so the data is correctly read, and Backward compatibility works because field tags are never changed amd have the same meaning.
-  - New field cannot be marked as required, although they can have a Default value. This is because old data will not have this required field.
-  - Required field cannot be removed, and we cannot use this deleted tag number again because some data might still use this tag number
-  - Datatype changes might cause truncation of data.
-5. Avro:
-- Avro also uses a schema to specify the DataStructure using Avro IDL for humans, and a machine-readable JSON format, but it does not use any Tag Numbers. It just concatenates the values together. 
-- To parse the binary data we go in the same order as it is declared in the schema. The schema also tells the Data type. So, Encoder and Decoder should use compatible schemas because order is important.
-- To support Schema evolution, it uses compatible Reader's and Writer's Schema
-- To maintain Forward and Backward compatibility, we can only add or delete a value that has a default value, so that the default value can be used if actual value is not found in the schema where it is missing.
-- Changing the field name can be a bit tricky using aliases and this breaks Forward compatibility.
-- Writer's schema is written only at the beginning of huge files. Writing the schema definition a lot of times will reduce space savings. 
-- One advantage of Avro compared to Thrift or Protobufs is that the schema does not contain any tag numbers. Therefore Avro is friendlier for dynamically generated schemas. For example, if a column is deleted and one added in a DB schema, the writer can simply use this new schema. A old reader who reads this new schema will see that the fields of the record have changed, but since the fields are identified by name, the updated writer's schema can still be matched with the old reader's schema.
-- By contrast, in Thrift and Protobuf, the field tags would likely to be changed manually which is error prone. Even for automatic tools we need to take care of not using the already used Field Tags.
+- Language-Specific:
+  - For example, Java's Serializable class.
+  - Advantage: less additional code needs to be written.
+  - Disadvantage: difficult to integrate with other languages, forward and backward compatibility issues, less efficient. 
+  - Good to use for temporary situations.
+- Formats used in APIs like JDBC and ODBC to send data stored in DBs over the network.
+- JSON, XML, CSV and their Binary Variants:
+  - Advantages: 
+    - They support multiple languages, and are human-readable. Therefore they are good as data interchange formats.  
+    - They are verbose but they can handle more detailed rules like an integer should be between 0 and 100.
+  - Disadvantages: 
+    - Ambiguity around encoding of numbers and some characters like comma in csv.
+    - Schemas are complicated. 
+  - The binary versions like BSON or WBXML use less space than their corresponding raw formats like JSON or XML. 
+- Thrift and Protocol Buffers:
+  - They make clever use of schemas for encoding which makes stored data more compact, and less compact data is faster to transfer over network or to store in disk.
+  - To encode one technique that is used is called BinaryProtocol, where the encodings have no field names unlike the above ones.  Instead the encoded data contains Field Tags (Aliases) which are numbers and these numbers along with the names appear in the schema definition for compaction. The schema definition is referred to decode.  The other encoding techniques work similarly.
+  - How do they handle schema evolution?
+    - The unset values are omitted from the encoded record
+    - Field names can be changed since only tags are referred. But, We cannot change Field Tags.
+    - We can add new fields to the schema with new Field Tag numbers, and old code simply ignores this new Field Tag number since it does not know about this. For Forward compatibility, the datatype annotation tells how many bytes to skip and so the data is correctly read, and Backward compatibility works because field tags are never changed amd have the same meaning.
+    - New field cannot be marked as required, although they can have a Default value. This is because old data will not have this required field.
+    - Required field cannot be removed, and we cannot use this deleted tag number again because some data might still use this tag number
+    - Datatype changes might cause truncation of data. 
+- Avro:
+  - Avro also uses a schema to specify the DataStructure using Avro IDL for humans, and a machine-readable JSON format, but it does not use any Tag Numbers. It just concatenates the values together. 
+  - To parse the binary data we go in the same order as it is declared in the schema. The schema also tells the Data type. So, Encoder and Decoder should use compatible schemas because order is important.
+  - To support Schema evolution, it uses compatible Reader's and Writer's Schema
+  - To maintain Forward and Backward compatibility, we can only add or delete a value that has a default value, so that the default value can be used if actual value is not found in the schema where it is missing.
+  - Changing the field name can be a bit tricky using aliases and this breaks Forward compatibility.
+  - Writer's schema is written only at the beginning of huge files. Writing the schema definition a lot of times will reduce space savings. 
+  - One advantage of Avro compared to Thrift or Protobufs is that the schema does not contain any tag numbers. Therefore Avro is friendlier for dynamically generated schemas. For example, if a column is deleted and one added in a DB schema, the writer can simply use this new schema. A old reader who reads this new schema will see that the fields of the record have changed, but since the fields are identified by name, the updated writer's schema can still be matched with the old reader's schema.
+  - By contrast, in Thrift and Protobuf, the field tags would likely to be changed manually which is error prone. Even for automatic tools we need to take care of not using the already used Field Tags.
 
 Protobufs, Avro and Thrift use a schema to describe a binary encoding format. Their schema languages are much simpler than JSON or XML which support more detailed validation rules like int should be between 0 and 100, etc. They are compact compared to the binary JSON variants, simpler to implement and use. Plus, schema evolution provides same kind of flexibility as schemaless or schema-on-read JSON DBs while also providing better guarantees about data and better tooling (to generate classes for programming, human viewing etc.).
 
 
 ## Modes of Dataflow
-1. Through DBs:
-- Different processes with different versions might be using the same DB. To support Backward Compatibility, use null for unknown fields of old rows.
-- Use Avro for schema evolution, Parquet for analytics.
-2. RPCs (Remote Procedure Calls):
-- RPCs try to make remote requests look more like a local function call, but this design philosophy called Location Transparency is flawed because network requests might fail or timeout without providing any error message unlike local function calls. Plus, the client and server might be implemented in different programming languages.  For example, Java EJB, RMI, CORBA etc.
-- REST is still better for experimentation, debugging, and has better tooling. RPC is mainly used within an org, and REST in other places mainly.
-Backward and Forward compatibility is maintained based on encoding format it uses
-3. Message Passing:
-- No encoding is enforced by message broker, so we are free to use an encoding that is Forward and Backward compatible. This way the clients and servers can be updated independently.
-4. Distributed Actor Framework (DAF):
-- In DAF, Logic is encapsulated in the actors and communication is achieved via message passing.
+- Through DBs:
+  - Different processes with different versions might be using the same DB. To support Backward Compatibility, use null for unknown fields of old rows.
+  - Use Avro for schema evolution, Parquet for analytics. 
+- RPCs (Remote Procedure Calls):
+  - RPCs try to make remote requests look more like a local function call, but this design philosophy called Location Transparency is flawed because network requests might fail or timeout without providing any error message unlike local function calls. Plus, the client and server might be implemented in different programming languages.  For example, Java EJB, RMI, CORBA etc.
+  - REST is still better for experimentation, debugging, and has better tooling. RPC is mainly used within an org, and REST in other places mainly.
+  Backward and Forward compatibility is maintained based on encoding format it uses 
+- Message Passing:
+  - No encoding is enforced by message broker, so we are free to use an encoding that is Forward and Backward compatible. This way the clients and servers can be updated independently. 
+- Distributed Actor Framework (DAF):
+  - In DAF, Logic is encapsulated in the actors and communication is achieved via message passing.
 
 ## Miscellaneous
 - Shared Nothing Architecture: Distributing load across multiple machines (Horizontal Scaling).
@@ -157,51 +162,47 @@ Backward and Forward compatibility is maintained based on encoding format it use
 - Elastic Systems: Systems that can automatically scale if load increases without manual intervention; good for unpredictable loads, else manual is simpler.
 - Adaptability: Agility of data systems.
 - Tail latency Amplification, Monitoring response times for a running time window using approximation algorithms like forward decay, t-digest etc.
-- Query Language Types: Declarative (Ex. sql), Imprative (Ex. Java, Python), Map-Reduce.
+- Query Language Types: Declarative (Ex. sql), Imperative (Ex. Java, Python), Map-Reduce.
 - Some data stores like Redis are also used as message queues, and some message queues like Kafka guarantee data durability like data stores.
 
 # Distributed Data
-We might want to distribute our Database from a single machine to multiple machines because it improves the following aspects of our application:
-
+The previous section built the foundations and the topics discussed there can be implemented on a single machine.  However, we might want to distribute our Database from a single machine to multiple machines to improve the following aspects of our application:
 1. Scalability: Distributing traffic to multiple machines improve throughput.
 2. Fault-Tolerance/High-Availability: Our systems should reasonably work as a whole even when a few machines fail.
 3. Latency: Latency is improved by serving requests from DataCenters that are geographically closer to clients, so that the requests and responses don't have to travel half way around the world.
 
-Distributing data across multiple machines is called Horizontal Scaling, or Scaling Out, or Shared Nothing Architecture (because CPUs/RAM/Disc is not shared among machines). There are some fundamental problems that we need to handle with Distributed Systems like: Replica Consistency, Availability, Durability, and Latency, among others.
+Distributing data across multiple machines is called **Horizontal Scaling, or Scaling Out, or Shared Nothing Architecture** (because CPUs/RAM/Disc is not shared among machines). There are some fundamental problems that we need to handle with Distributed Systems like: Replica Consistency, Availability, Durability, and Latency, among others.
 
-A different approach to scaling to higher load is to use a single more powerful machine with lots of storage and RAM (called Vertical Scaling or Scaling up), but the problem with this is that the cost grows faster than a linear function here.
+A different approach to scaling to higher load is to use a single more powerful machine with lots of storage and RAM (called **Vertical Scaling or Scaling up**), but the problem with this is that the cost grows faster than a linear function here.
 
 Depending on our application, either Vertical or Horizontal scaling can work better for us i.e. there's no one silver bullet.
 
 Distributing data across nodes is commonly achieved either using Replication, or Partitioning, or a combination of both.
 
 ## Replication
-Replication means keeping a copy of the same data on multiple machines. Replication is simple except that we need to handle changes to the replicated data too, and that makes it challenging to achieve.
+Replication means keeping a copy of the same data on multiple machines. Replication is simple, except that we need to handle changes to the replicated data too, and that makes it challenging to achieve.
 
 ### Leaders and Followers
-Every write to the Database needs to be processed by all the replicas. The most common solution to achieve this is called Leader-based replication (or Active-Passive or Master-Slave). Here, one of the replicas is designated as the leader (or master, primary etc.) and all writes go to this replica only. The other replicas are called followers (or read-replicas, slaves, secondaries, hot standbys etc.).
+Every write to the Database needs to be processed by all the replicas. The most common solution to achieve this is called **Leader-based replication (or Active-Passive or Master-Slave)**. Here, one of the replicas is designated as the leader (or master, primary etc.) and all writes go to this replica only. The other replicas are called **followers (or read-replicas, slaves, secondaries, hot standbys etc.)**.
 
-Whenever the leader receives a new write, it writes it to its local storage and also send these changes to the followers as part of a Replication Log or Change Stream. The followers use this log to write all the data in the same order as they were processes on the leader. Here the client must write to the leader, but read can be requested from any replica.
+Whenever the leader receives a new write, it writes it to its local storage and also send these changes to the followers as part of a **Replication Log or Change Stream**. The followers use this log to write all the data in the same order as they were processes on the leader. Here the client must write to the leader, but read can be requested from any replica.
 
 This is the default behaviour in many DBs like MySQL, MongoDB etc. This is not only used in DBs but also distributed message brokers like Kafka for high available queues, and some network file systems and replicated block devices.
 
 This pattern is useful for web applications where number of reads is far more compared to write -- reads can be served from multiple replicas.
 
 ### Synchronous vs Asynchronous Replication
-#### Synchronous
-- The leader waits for the follower's confirmation before reporting success to the client and before making the write visible to the other clients.
-- Advantage: The follower is guaranteed to have an up-to-date copy of the data.
-- Disadvantage: The leader must block all writes till the synchronous replica responds, which it does typically in <1s, but could take more time due to network delays or while recovering from a crash.
-
-#### Asynchronous
-- The leader sends the write messages to the followers and reports success to the client, without waiting for a confirmation from the followers.
-- Advantage: Even if all followers fail, the leader can support writes.
-- Disadvantage: Not durable, because if leader fails then non-replicated writes are lost even if they are confirmed to the client.
-- Eventual Consistency: Data may not be immediately updated in the follower nodes, but eventually the followers catch up after the Replication Lag Time.
-
-In synchronous replication, any one node outage can halt the entire system, so in practice typically 1 follower is made synchronous and others as asynchronous (semi-synchronous mode). If the synchronous node become slow or fails, then another asynchronous follower is made synchronous.
-
-To setup new followers, take a snapshot of the leader at some point in time when it was consistent (using log sequence number or binlog coordinates for example), copy that consistent snapshot to the followers, and then the followers can request and perform all writes since the snapshot.
+- Synchronous
+  - The leader waits for the follower's confirmation before reporting success to the client and before making the write visible to the other clients.
+  - Advantage: The follower is guaranteed to have an up-to-date copy of the data.
+  - Disadvantage: The leader must block all writes till the synchronous replica responds, which it does typically in <1s, but could take more time due to network delays or while recovering from a crash. 
+- Asynchronous
+  - The leader sends the write messages to the followers and reports success to the client, without waiting for a confirmation from the followers.
+  - Advantage: Even if all followers fail, the leader can support writes.
+  - Disadvantage: Not durable, because if leader fails then non-replicated writes are lost even if they are confirmed to the client.
+  - Eventual Consistency: Data may not be immediately updated in the follower nodes, but eventually the followers catch up after the Replication Lag Time. 
+- In synchronous replication, any one node outage can halt the entire system, so in practice typically 1 follower is made synchronous and others as asynchronous (semi-synchronous mode). If the synchronous node become slow or fails, then another asynchronous follower is made synchronous. 
+- To setup new followers, take a snapshot of the leader at some point in time when it was consistent (using log sequence number or binlog coordinates for example), copy that consistent snapshot to the followers, and then the followers can request and perform all writes since the snapshot.
 
 ### How to Handle node outages?
 - When followers fail: After coming back up, followers can request changes from their leader starting from the time that is in its write change log. The write change log tells the follower the write after which it crashed.
@@ -211,32 +212,32 @@ To setup new followers, take a snapshot of the leader at some point in time when
   - Split Brain Problem: Both the old and new reader thinks that they are the only leader, causing lost writes or conflicts.
 
 ### Techniques to implement Replication on Leader-based systems
-1. Statement Based:
-- Leader logs every write statement that it executes. Ex. INSERT, UPDATE commands in relational DBs
-- Problems: Non deterministic functions like now(), datetime() gives different values when ran in different machines; also some problems with triggers and stored r=procedures.
-2. Write Ahead Log (WAL):
-- Problem: WAL is expressed in a low level (like bytes), so changing storage engines or DB versions become difficult.
-3. Logical (Row based):
-- Here change granularity is at row level, and the process is called **Change Data Capture**.  This can also be used to send data to other places like a warehouse.
-4. Trigger Based:
-- This is done at the application level unlike the above ones, and it provides flexibility if we want to only replicate subset of the data.
+- Statement Based:
+  - Leader logs every write statement that it executes. Ex. INSERT, UPDATE commands in relational DBs
+  - Problems: Non deterministic functions like now(), datetime() gives different values when ran in different machines; also some problems with triggers and stored r=procedures. 
+- Write Ahead Log (WAL):
+  - Problem: WAL is expressed in a low level (like bytes), so changing storage engines or DB versions become difficult. 
+- Logical (Row based): 
+  - Here change granularity is at row level, and the process is called **Change Data Capture**.  This can also be used to send data to other places like a warehouse. 
+- Trigger Based:
+  - This is done at the application level unlike the above ones, and it provides flexibility if we want to only replicate subset of the data.
 
 ### Replication Lag Anomalies
 The lag time in replicating the data can confuse users if they query from a node that has not received the new data.
 
 Workarounds:
-1. Read your own writes (Read after write consistency): For the user who wrote the data, read it back from the leader, otherwise they might think that the data is lost.  For other users, they can read from the replicated nodes.
-2. Monotonic Reads: User will not see old data after having seen recent data once.  To achieve this, we can make the user read from the same replica by keeping a map of ip and hostname for example.
-3. Consistent Prefix Reads: Causally Dependent things like Question and Answer should appear in the same order.  To achieve this, we can make the causally dependent things to be written to the same node, or use algorithms to handle these things.
+- Read your own writes (Read after write consistency): For the user who wrote the data, read it back from the leader, otherwise they might think that the data is lost.  For other users, they can read from the replicated nodes. 
+- Monotonic Reads: User will not see old data after having seen recent data once.  To achieve this, we can make the user read from the same replica by keeping a map of ip and hostname for example. 
+- Consistent Prefix Reads: Causally Dependent things like Question and Answer should appear in the same order.  To achieve this, we can make the causally dependent things to be written to the same node, or use algorithms to handle these things.
 
 ### Multi-Leader Replication (Master-Master or Active/Active)
 - In Multi-Leader replication, writes are allowed in multiple nodes, and the leaders need to behave as leaders and followers simultaneously.  This is more robust than single-leader replication because the system remains up even if one leader goes down.  
 - Problem: We need to handle concurrent writes when the same data is being updated in multiple nodes.
 - Handling Write Conflicts:
-1. Avoidance: Try to make all writes to the same record go to the same node.
-2. Last Write Wins: Attach a unique monotonically increasing ID to each write and store the latest value.  The problem is that it might lead to data loss.  Ex. used by Cassandra.
-3. Custom Logic: Handle using custom logic either during read (ex. prompting user to re-insert the data), or during write (ex. Bucardo).
-4. Further Research: Conflict-Free Replicated Datatypes (CRDTs), Mergeable Persistent Data Structures, Operational Transformation algorithm etc.
+  - Avoidance: Try to make all writes to the same record go to the same node. 
+  - Last Write Wins: Attach a unique monotonically increasing ID to each write and store the latest value.  The problem is that it might lead to data loss.  Ex. used by Cassandra. 
+  - Custom Logic: Handle using custom logic either during read (ex. prompting user to re-insert the data), or during write (ex. Bucardo). 
+  - Further Research: Conflict-Free Replicated Datatypes (CRDTs), Mergeable Persistent Data Structures, Operational Transformation algorithm etc.
 
 #### Multiple Leader replication topologies
 1. All-to-All
@@ -247,8 +248,8 @@ Workarounds:
 ### Leaderless Replication
 - In these systems, there are no leaders and all the nodes can accept writes. These systems are also called Dynamo-style because Amazon used it for DynamoDB.
 - To catchup on the writes after a node goes down, 2 methods are used:
-1. Read Repair: When a client makes a read from several nodes in parallel, it can detect and correct stale data, if any.
-2. Anti-entropy: A background process continuously looks for and corrects stale data in an unordered fashion.
+  - Read Repair: When a client makes a read from several nodes in parallel, it can detect and correct stale data, if any. 
+  - Anti-entropy: A background process continuously looks for and corrects stale data in an unordered fashion.
 - Detecting Concurrent Writes: Include a version number with each key which increases with each write.  Use **Version Vectors** when multiple nodes are writing, and these version vectors keep all version numbers for all nodes that are writing.
 - Quorums are used to make sure that the latest data is read. If there are n replicas, then the write must be processed by at least w nodes, and reads must be processed by at least r nodes.  
   - So, Dynamo-style DBs are used in situations which can tolerate Eventual Consistency. To achieve stronger guarantees in Dynamo-style systems we need transactions or consensus. 
@@ -261,37 +262,37 @@ Workarounds:
 - Request routing is done via Round Robin (request randomly sent to node and redirection is used to find the correct node) or using a central coordinator like Zookeeper.
 
 ### Partition Strategies (Goal - Distribute keys fairly among nodes)
-1. Random: 
-- Problem: We might have to query all partitions in parallel because we might not know where the queried key lives.
-2. By Key-ranges:
-- Each partition keeps a contiguous range of keys, and we also keep track of which ranges belong to which partition.
-- Disadvantage: Risk of hotspots if the application often access keys that are closer in the sort order.
-- This technique is used by BigTable, HBase, MongoDB etc.
-3. Keys generated using Hash:
-- Choose the hash function properly to ensure fair data distribution.
-- We can then store the ranges of these Hash values using the Key-Range partitioning technique. The partition boundaries can be evenly spaced or chosen pseudo-randomly (Consistent Hashing).
-- Consistent Hashing randomly chooses partition boundaries to avoid central control or distributed consensus which are hard to achieve.
-- Disadvantage: Range queries perform bad because the storage order is lost.
-- Note: If there are many reads and writes for the same key, for example for a celebrity, add a 2 digit random number to the key so that the same key is distributed to multiple partitions.
+- Partition data randomly to random machines: 
+  - Problem: We might have to query all partitions in parallel because we might not know where the queried key lives.
+- By Key-ranges:
+  - Each partition keeps a contiguous range of keys, and we also keep track of which ranges belong to which partition.
+  - Disadvantage: Risk of hotspots if the application often access keys that are closer in the sort order.
+  - This technique is used by BigTable, HBase, MongoDB etc. 
+- Keys generated using Hash:
+  - Choose the hash function properly to ensure fair data distribution.
+  - We can then store the ranges of these Hash values using the Key-Range partitioning technique. The partition boundaries can be evenly spaced or chosen pseudo-randomly (Consistent Hashing).
+  - Consistent Hashing randomly chooses partition boundaries to avoid central control or distributed consensus which are hard to achieve.
+  - Disadvantage: Range queries perform bad because the storage order is lost.
+  - Note: If there are many reads and writes for the same key, for example for a celebrity, add a 2 digit random number to the key so that the same key is distributed to multiple partitions.
 
 ### Partition of Secondary Indexes
 A secondary index does not identify a row uniquely, but it is used to search for a particular value in a row/document efficiently. For example, all articles related to Travel.
 
 There are 2 main ways to partition a DB with secondary indexes:
-1. Document Partitioned (local index): Secondary indexes are stored in the same partition as the Primary key and the actual document.  Ex: MongoDB
-- Disadvantage: Reads must read all partitions.
-2. Term Partitioned: A global index covers data in all partitions (which can be further partitioned).  Here reads become fast, but writes might become slow. 
+- Document Partitioned (local index): Secondary indexes are stored in the same partition as the Primary key and the actual document.  Ex: MongoDB
+  - Disadvantage: Reads must read all partitions. 
+- Term Partitioned: A global index covers data in all partitions (which can be further partitioned).  Here reads become fast, but writes might become slow. 
 
 ### Rebalancing Partitions
 Rebalancing might be required when a node fails or we add more resources to handle increased load or datasize. This might require us to shift the load from one node to another, while continuing to support reads and writes.
 
 Strategies:
-1. hash mod n: In this strategy we simply put the keys in node x where x = (hash(key) modulus n).  
-- Disadvantage: If number of nodes (n) changes, then we might have to move around a lot of keys. 
-2. Fixed number of partitions: Here we create more partitions than required and assign multiple partitions to each node. If a new node joins then it takes a few partitions from each node to create an even distribution.
-3. Dynamic: Partitions are created dynamically. If a partition exceed some threshold size then it is divided into two halves, and small partitions are merged. Ex: HBase
-4. Partitions proportional to number of nodes:
-In this strategy, the size of partitions grow proportional to the size of the dataset, but when we increase the number of nodes the size of partitions become smaller again. When a new node joins the cluster it chooses a fixed number of partitions and takes half of the values from these. Averaging over a large number of times keeps the partition sizes even. For example, Cassandra.
+- hash mod n: In this strategy we simply put the keys in node x where x = (hash(key) modulus n).  
+  - Disadvantage: If number of nodes (n) changes, then we might have to move around a lot of keys. 
+- Fixed number of partitions: Here we create more partitions than required and assign multiple partitions to each node. If a new node joins then it takes a few partitions from each node to create an even distribution. 
+- Dynamic: Partitions are created dynamically. If a partition exceed some threshold size then it is divided into two halves, and small partitions are merged. Ex: HBase 
+- Partitions proportional to number of nodes:
+  - In this strategy, the size of partitions grow proportional to the size of the dataset, but when we increase the number of nodes the size of partitions become smaller again. When a new node joins the cluster it chooses a fixed number of partitions and takes half of the values from these. Averaging over a large number of times keeps the partition sizes even. For example, Cassandra.
 
 
 ## Transactions
@@ -358,19 +359,19 @@ Solutions to Write Skew:
 
 #### Serializability
 Techniques to implement Serializable Isolation:
-1. Actual Serial Execution
-- Here one transaction is executed one at a time serially on a single thread.
-- Disadvantage: It's throughput is limited to a single CPU core. 
-2 Phase Locking (2PL):
-- Several transactions are allowed to read concurrently as long as no transaction is writing to it. Exclusive locks are required for writes.
-- This is in contrast to Snapshot Isolation where readers and writers never block each other. This difference makes 2PL overcome all the race conditions discussed earlier including lost updates and write skew.
-- To read, a Txn must obtain a shared lock. To write, a Txn must obtain an exclusive lock. 
-- Predicate Locks:  Predicate Locks are used to stop Phantoms causing Write Skew.  It works similar to shared/exclusive lock but the locks does not belong to an object/row, it belongs to all objects that match a search condition.  Predicate Locks do not perform well, and so Index-range Locks are used more commonly.
-- Index-Range Locks: Here a greater set of predicates is matched. This approximation of the search condition is attached to one of the indexes (either the room_id or time index). Now, if another txn wants to modify this same overlapping condition then it will see the shared lock on the index, and consequently it will wait for that lock to be released.
-3. Serializable Snapshot Isolation (SSI):
-- 2PC implementations like 2 phase locking don't perform well, and serial executions do not scale well. 
-- SSI provides full serializability with a small performance penalty compared to Snapshot Isolation. SSI is new, so its adoption is still not widespread. 
-- Compared to 2 phase locking or serializable executions which are pessimistic, this is an optimistic algorithm. Instead of blocking if something dangerous could happen, txns continue anyway hoping that everything will turn out good in the end. When a txn wants to commit the DB checks whether isolation was violated, and if so, the txn is aborted and has to be retried. Only txns that executed serially are allowed to commit.
+- Actual Serial Execution
+  - Here one transaction is executed one at a time serially on a single thread.
+  - Disadvantage: It's throughput is limited to a single CPU core. 
+- 2 Phase Locking (2PL):
+  - Several transactions are allowed to read concurrently as long as no transaction is writing to it. Exclusive locks are required for writes.
+  - This is in contrast to Snapshot Isolation where readers and writers never block each other. This difference makes 2PL overcome all the race conditions discussed earlier including lost updates and write skew.
+  - To read, a Txn must obtain a shared lock. To write, a Txn must obtain an exclusive lock. 
+  - Predicate Locks:  Predicate Locks are used to stop Phantoms causing Write Skew.  It works similar to shared/exclusive lock but the locks does not belong to an object/row, it belongs to all objects that match a search condition.  Predicate Locks do not perform well, and so Index-range Locks are used more commonly.
+  - Index-Range Locks: Here a greater set of predicates is matched. This approximation of the search condition is attached to one of the indexes (either the room_id or time index). Now, if another txn wants to modify this same overlapping condition then it will see the shared lock on the index, and consequently it will wait for that lock to be released. 
+- Serializable Snapshot Isolation (SSI):
+  - 2PC implementations like 2 phase locking don't perform well, and serial executions do not scale well. 
+  - SSI provides full serializability with a small performance penalty compared to Snapshot Isolation. SSI is new, so its adoption is still not widespread. 
+  - Compared to 2 phase locking or serializable executions which are pessimistic, this is an optimistic algorithm. Instead of blocking if something dangerous could happen, txns continue anyway hoping that everything will turn out good in the end. When a txn wants to commit the DB checks whether isolation was violated, and if so, the txn is aborted and has to be retried. Only txns that executed serially are allowed to commit.
 
 
 # Problems with Distributed Systems
@@ -387,11 +388,11 @@ Distributed Systems are hard because it works with unreliable network, and we ca
 - Unlike Serializability, Linearizability does not group operations together. The read and write request could be independent and thus write skew cannot happen. A DB may provide both Serializability and Linearizability, and this combination is called strict-serializability or strong one-copy serializability. Implementations of Serializability based on 2 phase locking or actual serializability are typically linearizable, but Snapshot Isolation Serializability does not guarantee that.
 - Linearizability is useful for Leader Election, reliable counter increments etc.
 - Implementation: If only a single node holds one copy of the data and all operations on this is atomic, then it might be lost/inaccessible if the node fails - and hence not fault tolerant. The most common way to make a system fault-tolerant is to use replication. Here's a discussion of if replication can be made linearizable:
-1. Single-Leader Replication: They are potentially linearizable if we read from the leader or from the synchronous followers.
-2. Consensus Algorithms
-3. Multi-Leader Replication: Linearizable even if network interruption happens between 2 datacenters, because the clients just needs to connect to it's "home" datacenter.
-4. Leaderless Replications are probably not linearizable because of concurrency issues.
-5. Strict Quorums: Strict Quorums are not linearizable due to variable networks delays; and because the reads may read from different set of nodes.   It is possible to make dynamo-style quorums at the cost of reduced performance; a reader must perform read repair synchronously and a writer must read the latest state of quorum before sending its writes. But this makes only read and write linearizable, not compare-and-set.
+  - Single-Leader Replication: They are potentially linearizable if we read from the leader or from the synchronous followers. 
+  - Consensus Algorithms 
+  - Multi-Leader Replication: Linearizable even if network interruption happens between 2 datacenters, because the clients just needs to connect to it's "home" datacenter. 
+  - Leaderless Replications are probably not linearizable because of concurrency issues. 
+  - Strict Quorums: Strict Quorums are not linearizable due to variable networks delays; and because the reads may read from different set of nodes.   It is possible to make dynamo-style quorums at the cost of reduced performance; a reader must perform read repair synchronously and a writer must read the latest state of quorum before sending its writes. But this makes only read and write linearizable, not compare-and-set.
 
 # The CAP Theorem
 Choose any 2 between Consistency, Availability, and Partition Tolerance. Since Partition tolerance is beyond our control we need to choose one of the other 2.
@@ -402,13 +403,13 @@ We can use sequence numbers to order events. They are counters which is incremen
 Lamport Timestamps are a pair of (counter, nodeId). 
 
 ## Distributed Transactions and Consensus
-Consensus is required for Leader Election and Atomic commit.
-1. 2 Phase Commit (2PC):
-- It is the most common way of solving the problem of atomic commit. On single machines atomic commit is achieved using Write Ahead Log and recovering using it in case of failures, but in distributed systems, the commit may happen in some nodes but not in others due to different reasons, thus making data inconsistent across nodes. 
-- 2PC achieves atomic commit across multiple machines i.e. either all nodes commit or abort. Here the commit/abort process is split into 2 phases. It uses a Coordinator or Transaction Manager. 
-- A 2PC txn begins with the app reading and writing data on multiple DB nodes (called participants), as normal. When the application is ready to commit, the coordinator begins Phase 1: it sends a prepare message to all nodes asking them if they can commit or not. If it hears all say yes then it sends a commit message to all in phase 2 and the commit happens, else aborts.
-2. Three-phase commit (3PC): 2PC is blocking because participants need to wait for coordinator recovery and during that time no one can read/write because the rows are locked. 3PC is non-blocking but it assumes bounded delay of network.
-3. Epoch-Numbering: Within each epoch the leader is unique.
+Consensus is required for Leader Election and Atomic commit. 
+- 2 Phase Commit (2PC):
+  - It is the most common way of solving the problem of atomic commit. On single machines atomic commit is achieved using Write Ahead Log and recovering using it in case of failures, but in distributed systems, the commit may happen in some nodes but not in others due to different reasons, thus making data inconsistent across nodes. 
+  - 2PC achieves atomic commit across multiple machines i.e. either all nodes commit or abort. Here the commit/abort process is split into 2 phases. It uses a Coordinator or Transaction Manager. 
+  - A 2PC txn begins with the app reading and writing data on multiple DB nodes (called participants), as normal. When the application is ready to commit, the coordinator begins Phase 1: it sends a prepare message to all nodes asking them if they can commit or not. If it hears all say yes then it sends a commit message to all in phase 2 and the commit happens, else aborts. 
+- Three-phase commit (3PC): 2PC is blocking because participants need to wait for coordinator recovery and during that time no one can read/write because the rows are locked. 3PC is non-blocking but it assumes bounded delay of network. 
+- Epoch-Numbering: Within each epoch the leader is unique.
 
 
 ## Membership and Coordination Services
@@ -425,40 +426,40 @@ Derived data is derived from system of records, also called source of truth. For
 3. Stream processing (near real-time or nearline): It is somewhere between online and offline systems. Like batch processing it takes input and produces output (rather than responding to requests). However a stream job operates on an even shortly after it happened, unlike batch which operates on a fixed input set. It requires stream systems to have lower latency than batch systems, but they are built on top of batch systems.
 
 ## Batch Processing
-1. Unix Pipelines: Unix tools process GBs of log files in seconds.  It automatically parallelizes to all CPU cores, and handles data greater than memory size by spilling into disk.
-2. Map Reduce:
-- MapReduce is a programming framework using which we can write code to process large datasets in a distributed filesystem like HDFS.  It can be used to create search indexes like Lucene or to precompute ML recommendations.
-- Data processing pattern:
-  - Read a set of input files and break it down into records. For example, each record is a line in a log file.
-  - Call the mapper function to extract a key and a value from each input record.
-  - Sort all the key-value pairs by key. This step is implicit, and mapper always sorts the output before giving it to the reducer.
-  - Call the reducer function to iterate over the sorted key-value pairs. Since the keys are sorted, so some calculations like uniq becomes easy on memory.
-- If we want to sort by the count, then we need a second sorting stage which we can implement by writing a second MapReduce job and using the output of the first job as the input for the second job.
-- The parallelization of MapReduce is based on partitioning: the input to the job is typically a directory in HDFS, and each file or fileblock within the input directory is considered to be a separate partition that can be processed by a separate map task. Each input file is typically hundreds of megabytes in size.
-- Sort-Merge Joins: It is used when we need to join data from 2 datasets.  Here, 2 sets of mappers produce the key-value pairs for each dataset and keep them together.  Then the reducer function can be called for each key once to produce the final output.
-  - For example, 2 mappers process over click and user_profile datasets and puts the user_id+click_type and user_id+user_age together sorted by user_id.  The reducer function can be called for each userId once, and it can store the first row (age) in a local variable, and iterating over the click_event, outputting pairs of viewed-url and viewer-age-in-years.  Subsequent MapReduce jobs can then calculate the distribution of viewer ages by URL and sort it.
-- Hot Keys: 
-  - Bringing all values with the same key to the same place might break for 'hot keys' (ex. celebrities) and might lead to data skew (or hotspots) i.e. one reducer might have significantly more data than others. Since MapReduce jobs are complete only when all of its mappers and reducers have completed, any subsequent jobs might have to wait for the slowest reducer before they can start. 
-  - If a join input has a hot key, there are a few algorithms we can use to compensate. For example, the skewed join method in pig runs a sampling first to determine which keys are hot. For Hive, we need to explicitly mention the hot key in the metadata. Grouping happens in 2 stages: the first grouping makes the output more compact, and the 2nd grouping works on this compacted data.
-- Map side joins:
-  - The previous approach is called reduce-side joins which do not assume anything about the data distribution. Reduce-side joins may be quite expensive. 
-  - Map-side joins work if we can make some assumptions about the data. These jobs have no reducers and no sorting. It's just one mapper reading one input file block from the distributed file system and writing one output to the file system. 
-  - Techniques:
-    - Broadcast Hash Joins: It works when a big dataset needs to be joined with a small dataset which is small enough to be entirely loaded in the memory of each mapper. We can load entirely into memory or on a read-only index on the local disk, which doesn't require it to fit this into memory. 
-    - Partitioned Hash Joins:  If the inputs to the map-side joins are partitioned in the same way, then the hash join can be applied to each partition independently. For example, the data in click_event and user_data partitioned ny the last digit of their user_id.  These are also called bucketed map joins in Hive. 
-    - Map-side merge joins:  It works if the input dataset is not only partitioned in the same way, but also sorted based on the same key. Here, it doesn't matter if the inputs don't fit in memory because merging is done same as the reducer. 
-  - The output of reduce-side join is partitioned and sorted by key, but for map-side join the output is sorted and partitioned in the same way as the input. Map-side join also makes assumption of the data layout. Number of partitions, etc. can affect performance.
-- Hadoop vs Distributed DBs:
-  - Data type: Distribute DBs need to decide on a schema beforehand, whereas in Hadoop we can simply dump the data, and later we can figure out how to process the raw data. This is possible because of the general purpose MapReduce and HDFS. Also, HDFS simply stores sequences of bytes which can be anything like images, videos, texts, sensor data etc. 
-  - Processing models: MPPs use sql syntax and are limited in expression, whereas Hadoop is general purpose. We cannot write ML algos easily with SQL, but we can write them using Mapreduce. 
-  - Handling Fault Tolerance: MapReduce can handle fault tolerance better because data is written to disk, and reruns can run from these intermediate steps. In Distributed DBs data is kept in memory, so rerunning cannot start from intermediate steps. It is designed this way because Distributed DBs need to respond within minutes, whereas Hadoop jobs can run for days.
-3. Beyond MapReduce:  MapReduce is robust and can handle humongous amounts of data (albeit slowly) and on multi-tenant systems with frequent task terminations. On the other hand it might be slower than other tools which does not write intermediate results to files.
-- MapReduce writing intermediate files to disk makes it slow sometimes. So several new execution engines were created like Spark and Flink (called dataflow engines). They handle the entire workflow as one job rather than dividing them into subjobs.
-- High level APIs like spark, hive etc. can optimize joins by changing the join order for example so that less amount of data is required to be in memory.  They can also make use of column-oriented storage to load only the required columns.  They use vectorized execution for faster execution, by using tight inner loops for example to make use of CPU cache while running loops, and avoiding function calls.
-4. Graphs and Iterative Processing:
-- Batch processing on graphs is often used in ML algorithms like recommendation engines or ranking systems (like pagerank).  Many Graph algorithms work by traversing one vertex/edge at a time (in iterations) until some termination condition is met.  
-- The Pregel Processing Model: It is also called the Pregel model, based on Google's paper named Pregel.  It works by message passing between vertices.  In each iteration we need to pass the messages to only a subset of the vertices, so it works efficiently compared to MapReduce which processes every row in each iteration. 
-- Apache Giraph, Spark's GraphX API etc.
+- Unix Pipelines: Unix tools process GBs of log files in seconds.  It automatically parallelizes to all CPU cores, and handles data greater than memory size by spilling into disk.
+- Map Reduce:
+  - MapReduce is a programming framework using which we can write code to process large datasets in a distributed filesystem like HDFS.  It can be used to create search indexes like Lucene or to precompute ML recommendations.
+  - Data processing pattern:
+    - Read a set of input files and break it down into records. For example, each record is a line in a log file.
+    - Call the mapper function to extract a key and a value from each input record.
+    - Sort all the key-value pairs by key. This step is implicit, and mapper always sorts the output before giving it to the reducer.
+    - Call the reducer function to iterate over the sorted key-value pairs. Since the keys are sorted, so some calculations like uniq becomes easy on memory.
+  - If we want to sort by the count, then we need a second sorting stage which we can implement by writing a second MapReduce job and using the output of the first job as the input for the second job.
+  - The parallelization of MapReduce is based on partitioning: the input to the job is typically a directory in HDFS, and each file or fileblock within the input directory is considered to be a separate partition that can be processed by a separate map task. Each input file is typically hundreds of megabytes in size.
+  - Sort-Merge Joins: It is used when we need to join data from 2 datasets.  Here, 2 sets of mappers produce the key-value pairs for each dataset and keep them together.  Then the reducer function can be called for each key once to produce the final output.
+    - For example, 2 mappers process over click and user_profile datasets and puts the user_id+click_type and user_id+user_age together sorted by user_id.  The reducer function can be called for each userId once, and it can store the first row (age) in a local variable, and iterating over the click_event, outputting pairs of viewed-url and viewer-age-in-years.  Subsequent MapReduce jobs can then calculate the distribution of viewer ages by URL and sort it.
+  - Hot Keys: 
+    - Bringing all values with the same key to the same place might break for 'hot keys' (ex. celebrities) and might lead to data skew (or hotspots) i.e. one reducer might have significantly more data than others. Since MapReduce jobs are complete only when all of its mappers and reducers have completed, any subsequent jobs might have to wait for the slowest reducer before they can start. 
+    - If a join input has a hot key, there are a few algorithms we can use to compensate. For example, the skewed join method in pig runs a sampling first to determine which keys are hot. For Hive, we need to explicitly mention the hot key in the metadata. Grouping happens in 2 stages: the first grouping makes the output more compact, and the 2nd grouping works on this compacted data.
+  - Map side joins:
+    - The previous approach is called reduce-side joins which do not assume anything about the data distribution. Reduce-side joins may be quite expensive. 
+    - Map-side joins work if we can make some assumptions about the data. These jobs have no reducers and no sorting. It's just one mapper reading one input file block from the distributed file system and writing one output to the file system. 
+    - Techniques:
+      - Broadcast Hash Joins: It works when a big dataset needs to be joined with a small dataset which is small enough to be entirely loaded in the memory of each mapper. We can load entirely into memory or on a read-only index on the local disk, which doesn't require it to fit this into memory. 
+      - Partitioned Hash Joins:  If the inputs to the map-side joins are partitioned in the same way, then the hash join can be applied to each partition independently. For example, the data in click_event and user_data partitioned ny the last digit of their user_id.  These are also called bucketed map joins in Hive. 
+      - Map-side merge joins:  It works if the input dataset is not only partitioned in the same way, but also sorted based on the same key. Here, it doesn't matter if the inputs don't fit in memory because merging is done same as the reducer. 
+    - The output of reduce-side join is partitioned and sorted by key, but for map-side join the output is sorted and partitioned in the same way as the input. Map-side join also makes assumption of the data layout. Number of partitions, etc. can affect performance.
+  - Hadoop vs Distributed DBs:
+    - Data type: Distribute DBs need to decide on a schema beforehand, whereas in Hadoop we can simply dump the data, and later we can figure out how to process the raw data. This is possible because of the general purpose MapReduce and HDFS. Also, HDFS simply stores sequences of bytes which can be anything like images, videos, texts, sensor data etc. 
+    - Processing models: MPPs use sql syntax and are limited in expression, whereas Hadoop is general purpose. We cannot write ML algos easily with SQL, but we can write them using Mapreduce. 
+    - Handling Fault Tolerance: MapReduce can handle fault tolerance better because data is written to disk, and reruns can run from these intermediate steps. In Distributed DBs data is kept in memory, so rerunning cannot start from intermediate steps. It is designed this way because Distributed DBs need to respond within minutes, whereas Hadoop jobs can run for days. 
+- Beyond MapReduce:  MapReduce is robust and can handle humongous amounts of data (albeit slowly) and on multi-tenant systems with frequent task terminations. On the other hand it might be slower than other tools which does not write intermediate results to files.
+  - MapReduce writing intermediate files to disk makes it slow sometimes. So several new execution engines were created like Spark and Flink (called dataflow engines). They handle the entire workflow as one job rather than dividing them into subjobs.
+  - High level APIs like spark, hive etc. can optimize joins by changing the join order for example so that less amount of data is required to be in memory.  They can also make use of column-oriented storage to load only the required columns.  They use vectorized execution for faster execution, by using tight inner loops for example to make use of CPU cache while running loops, and avoiding function calls. 
+- Graphs and Iterative Processing:
+  - Batch processing on graphs is often used in ML algorithms like recommendation engines or ranking systems (like pagerank).  Many Graph algorithms work by traversing one vertex/edge at a time (in iterations) until some termination condition is met.  
+  - The Pregel Processing Model: It is also called the Pregel model, based on Google's paper named Pregel.  It works by message passing between vertices.  In each iteration we need to pass the messages to only a subset of the vertices, so it works efficiently compared to MapReduce which processes every row in each iteration. 
+  - Apache Giraph, Spark's GraphX API etc.
 
 ## Stream Processing
 - In batch processing the input is of finite size, so the batch process knows when it has finished reading all data. For data coming continuously like user clicks, batch processes partitions the data artificially into fixed chunks. For example, running the batch process at the end of each day. 
