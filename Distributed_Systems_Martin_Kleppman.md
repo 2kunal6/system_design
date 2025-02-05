@@ -462,4 +462,53 @@ Derived data is derived from system of records, also called source of truth. For
     - In this case there are 3 options: drop messages, buffer messages in a queue, backpressure (block producer from sending more messages).   In queue, what happens if queue can no longer fit in memory? does it crash, does it write to disk (and if yes then does disk access degrade performance)? 
   - What happens in nodes crash or go offline? Are the messages lost? 
     - Durability of messages has a cost of writing to disk and replication. If we can afford to lost some messages then we can get a higher throughput and low latency.
-  - Direct Communication: It works for certain specialized situations but the application has to take care when messages are lost.  For example, UDP multicast (for low latency systems like finance), Brokerless messaging services like ZeroMQ, StatsD, HTTP/RPC.
+  - Some message brokers participate in 2-phase commit, making them similar to DBs, but unlike DBs they delete messages once processed (work with the assumption that there will be less data).  Also, unlike DB they can notify clients when data changes.
+- Direct Communication: It works for certain specialized situations but the application has to take care when messages are lost.  For example, UDP multicast (for low latency systems like finance), Brokerless messaging services like ZeroMQ, StatsD, HTTP/RPC.
+- When multiple consumers read messages from the same topic, 2 main patterns of messaging are used:
+  - Load Balancing: Each message is delivered to one arbitrary consumer.  This pattern is useful when the message processing is heavy, and we want to add more consumers to increase parallelization. 
+  - Fanout: Each message is delivered to all of the consumers.
+  - Combination of Load Balancing and Fanout.
+  - Acknowledgements and Redelivery: Consumers might crash. So brokers wait for the consumers to tell them once it has finished processing before removing the message from the queue. If it does not wait then messages can be lost. If message is processed but acknowledgement is lost, then message is redelivered for consumer processing. Handling this case requires atomic commit protocol. This redelivery along with load balancing can make the consumers receive the messages in a different order. To avoid this issue we can use a different queue per consumer (not load balancing), if message ordering is important.
+- Partitioned Logs: Log-based message brokers stores the message, but without increasing the latency too much (reading from the log is slower compared to in-memory read). This is required because otherwise once a message is wrongly deleted, it is lost forever.
+  - Producer appends messages to an append-only log and consumer reads from a certain offset of this log.  The log is partitioned across multiple machines.
+  - Sequence number is used for each message.  This sequence number provides ordering within a single partition, but there's no such guarantee across partitions.
+  - Ex: Apache Kafka.
+  - Even though these systems write msgs to disk they can process millions of messages per second using partitions and replication for fault-tolerance.
+  - The log based approach typically supports fan out because several consumers can independently read the logs without affecting each other. To achieve load balancing across a group of consumers, instead of assigning individual messages to consumer clients, the broker can assign entire partitions to nodes in the consumer group.
+  - Typically when a consumer has been assigned a log partition, it reads the messages in the log partition sequentially in a simple single-threaded manner, but this method has some downsides:
+    - The number of nodes sharing the topic cannot be greater than the number of partitions. 
+    - If a single message is low to process, it holds up the processing of subsequent msgs in that partition. 
+  - Thus in situations where messages may be expensive to process and we want to parallelize processing on a msg-by-msg basis, and where msg ordering is not important, the JMS/AMQP style is preferred. But where high msg throughput, and short msg processing time, and msg ordering required, the log-based approach works well.
+  - Only appending might lead to running out of disk space. So, we partition the logs into segments and periodically clean/archive the older segments. But if the consumers are slow, then it might still point to the deleted segments, but this is very unlikely practically with monitoring tools and all. However this does not affect other consumers. This is also unlike traditional msg brokers which keeps msgs in memory and uses space. 
+  - Also unlike JMS/AMQP style, processing and acknowledging is a destructive process where msgs are deleted once acknowledged. However log-based approach writes the msg, and we can configure a consumer to consume from a random offset. So, it allows for more experimentation and easy recovery from faults.
+- Change Data Capture:
+  - To read DB logs and replicate the changes in a different system, for example to keep the DB and cache in sync. It is especially beneficial if the changes are made available as a stream immediately after they are written. Ex. LinkedIn's Databus, and MongoRiver for MongoDB. CDC is async and thus fast for writes but problems with replication lag may apply. 
+  - To add a new system, it can read the entire log history to construct its state. But, reading the entire history can take a lot of time, so we use log compaction. This compaction feature is supported by Kafka. 
+  - To support CDC, DBs are also providing APIs. Ex. Kafka connect.
+- Event Sourcing: Similar to CDC, Event Sourcing stores application changes as log of change events. But Event Sourcing uses this idea at the level of application. In CDC, the DBs are mutable and we can update/delete records. In Event Sourcing the application logic is built on the basis of immutable events. Ex: EventStore
+- Partitioning and Parellalization works similar to MapReduce and dataflow engines. The one crucial difference is that a stream never ends. So sorting does not make sense and sort-merge joins do not work. Streaming jobs also use a different fault-tolerance mechanism. We can restart batch jobs if it fails, but a streaming job that has been running for years might not be feasible to run from the start.
+- Uses of Stream Processing 
+  - Monitoring in fraud detection or financial systems. 
+  - Complex Event Processing: It allows us to specify rules to search for certain patterns of events in a stream. Ex: SQLstream
+  - Stream Analytics: aggregation, statistics, probabilistic algorithms like bloom filters, approx percentiles.  Ex: Apache Storm, Spark Streaming, Kafka Streams, Flink.
+  - Maintaining Materialized views like caches, indexes etc.
+  - Message Passing and RPC: Ex. using Apache Storm's distributed RPC which match user queries with stream events and return results to the users who queried.
+- Stragler events: Events that occurred in a particular window might arrive late due to network problems or queues. We can ignore them if they are less in number or recalculate the values.
+- Types of Windows to calculate aggregations 
+  - Tumbling Window: These are of fixed length and every event belongs to exactly one window. 
+  - Hopping window: It also has fixed length but it allows windows to overlap for smoothing. Ex. a 5 minute hopping window with a 1 minute tumble will look like 10:00:00 to 10:05:00 and next window will look like 10:01:00 to 10:06:00 
+  - Sliding Window: it contains all events which occurred within some interval of each other. Ex: a 5 min window will have events from 10:01:00 to 10:06:00 in the same window because they are <5 minutes apart. In Tumbling and Hoping windows these objects won't belong to the same window. 
+  - Session Window: unlike others, this does not have a fixed window or duration. Instead it groups all activities for the same user for example user clicks on a website. When the user becomes inactive for some time this eindow is closed. It is used for webpage analytics.
+- Stream Joins:
+  - New events may come anytime and this makes joins harder in streams. 
+  - Types of stream joins:
+    - Stream-stream join (window join): Events are joined based on sessionId for example. 
+    - stream-table join (stream enrichment): For every event a DB is queried to find more info about that event's userId for example. This info DB can be called as a remote call, or loaded into the computer where the stream processor is running. To keep the table updated, we can use change data capture. 
+    - table-table join (materialized view maintenance): Streams are collected in tables and joined.
+- Fault Tolerance of stream operators:
+  - Using Microbatching and Checkpointing:
+    - Microbatching is breaking streams into blocks and treat each batch like a miniature batch process. This is used in spark streaming. 
+    - Apache Flink ocassionally writes the state in durable storage, and recover from there.
+  - Atomic Commits: Make the side effects run only once if the task succeeds using techniques like 'Exactly once message processing' discussed earlier, or 2 phase commit. In restricted environments this can be achieved efficiently.
+  - Idempotence: Make ops idempotent so that even if the operation is run many times, the effect happens only once.  Even if the operation is not naturally idempotent like click counter, it can be made idempotent with some metadata. 
+  - Rebuilding state after failure: Any stream process that requires a state - counter, windowed aggregations like sum, any tables and indexes used for joins - must ensure state recovery after failure. Keep state local to the stream processor machine and replicate it periodically. This ensures no message loss.
