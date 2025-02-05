@@ -1,50 +1,61 @@
 # Foundations
 
-Data Intensive applications are the ones where we need to deal with a huge amount of data.  For example, typical internet companies like Google, Amazon, Twitter etc.  On the other hand compute (CPU or GPU) intensive applications are the one where the bottleneck is CPU speed.  For example, Crypto Mining, ML applications, etc. where there might just be a few thousand data points, but processing them requires huge amount of compute.
+Data Intensive applications are the ones where we need to deal with a huge amount of data.  For example, typical internet companies like Google, Amazon, Twitter etc.  On the other hand, compute intensive applications are the one where the bottleneck is CPU/GPU speed.  For example, Crypto Mining, ML applications, etc. where there might just be a few thousand data points, but processing them requires huge amount of compute.
 
 To handle Data Intensive applications we typically use NoSQL, Message Brokers, Caches, Search Indexes, Batch Processing, Stream Processing, and so on.  The following topics will help us understand the different techniques/concepts, and guide us in choosing the right technology to make our application scalable, highly available, and easily maintainable.
 
-## Non-Functional Requirements
+### Non-Functional Requirements
 The 3 most important qualities of a Software System are (others being Security, Compliance etc.):
 1. Reliability: The system should overall work fine even in the face of Hardware failures, Software Failures, or Human Errors.
-2. Scalability: The system should be able to handle growing traffic, data volume, data complexity.
-3. Maintainability: It should be easy to add new features to the system.  Also, it should be easy to find and fix errors, if and when that occurs.
+2. Scalability: The system should be able to handle growing traffic, data volume, and data complexity.
+3. Maintainability: It should be easy to add new features to the system, and easy to find and fix errors.
 
-## Load Parameters
-Some of the Load Parameters we ought to consider when trying to improve the non-functional aspects of a system are: Throughput (Ex. number of reads per second in Hadoop), Latency (for x percentile of users), Number of concurrent users, Read vs Write ratio, cache hit ratio, and so on.
+### Load Parameters
+Some of the Load Parameters we ought to consider when trying to improve the non-functional aspects of a system are: 
+1. Throughput: For example, Number of reads per second in Hadoop.
+2. Latency: We generally calculate latency for x percentile of users.
+3. Number of concurrent users
+4. Read vs Write ratio
+5. Cache hit ratio.
 
 We need to carefully calculate the load parameters because our architecture will be completely different for different types of load parameters.  For example, an application serving 3 MB files for millions of users will have a completely different architecture compared to an application serving GB sized files for few users.
 
 
-## Data Models
-Mainly there are 3: Relational, Document Based, Graph Model.
-Some others are: Genome DB, Full Text Search DB, Immutable DBs, Big Data for physics handling petabytes, Time Series DB, Vector DB, Analytics DB etc.
-It's not easy to say which data model makes our application simple.  It depends on the data and query patterns.
+### Data Models
+Following are some of the data models used commonly: 
+1. Relational
+2. Document Based
+3. Graph Model
+4. Some others are: Genome DB, Full Text Search DB, Immutable DBs, Big Data for physics handling petabytes, Time Series DB, Vector DB, Analytics DB etc.
 
-### Document DBs Vs Relational DBs
-#### Document DB
-They use a tree-like structure.  For example, MongoDB, RethinkDB, CouchDB, etc.
-##### Advantages
-- They are good for self-contained data (one-to-many relationships) like a LinkedIn profile for a person.  It does not require joins to fetch details about a person's LinkedIn profile.  Loading this entire self-contained data in one go could provide us good performance.
-- They are good when our schema needs to change frequently, because we use schema-on-read.  For Relational DB, changing schema requires downtime, and changes could be hard.
-- They are closer to application's data structures, and we might not need an intermediary like Hibernate or ibatis.
-- The poor support of joins might not be a problem if our queries can do without joins.
+To choose the correct data model for our application, we need to understand the type of data and query patterns that our application will have.
 
-##### Disadvantages
-- They not represent many-to-one or many-to-many relationships well.  For example, if we need to change the name of a city then we might have to update each row in DocumentDB, compared to a single row change in Relational DB.  We can denormalize the data to support many-to-one or many-to-many relationships, but then we will have to do extra work to keep our data consistent.
+#### Document DB Vs Relational DB
+- Document DB:
+  - They use a tree-like structure.  For example, MongoDB, RethinkDB, CouchDB, etc. 
+  - Advantages:
+    - They are good for self-contained data (one-to-many relationships) like a LinkedIn profile for a person.  It does not require joins to fetch details about a person's LinkedIn profile.  Loading this entire self-contained data in one go could provide us good performance.
+    - They are good when our schema needs to change frequently, because we use schema-on-read.  For Relational DB, changing schema requires downtime, and changes could be hard.
+    - They are closer to application's data structures, and we might not need an intermediary like Hibernate or ibatis.
+    - The poor support of joins might not be a problem if our queries can do without joins. 
+  - Disadvantages:
+    - They cannot represent many-to-one or many-to-many relationships well.  For example, if we need to change the name of a city then we might have to update each row in DocumentDB, compared to a single row change in Relational DB.  We can denormalize the data to support many-to-one or many-to-many relationships, but then we will have to do extra work to keep our data consistent. 
+- Relational DB:
+  - They structure data in the form of tables, and use joins to make use of the relationships between tables.
+  - Advantages
+    - They are good for dynamic queries using joins.  For a new query, we just need to create the new indexes.  The query optimizer will take care of retrieving the data in the correct order keeping performance in mind.  Thus it is useful to add new features.
+    - They are good for many-to-one or many-to-many relationships.
+    - Less data redundancy.
+    - Generally supports ACID well which helps us maintain Data Integrity. 
+  - Disadvantages 
+    - They have fixed schema, and changing schema might require downtime.
+    - It might be hard to scale them.
 
-#### Relational DB
-##### Advantages
-- Better for Dynamic queries using joins.  For a new query, we just need to create the new indexes.  The query optimized will take care of retrieving the data in the correct order keeping performance in mind.  Thus it is useful to add new features.
-- They are good for many-to-one or many-to-many relationships.
-- Less data redundancy.
+#### Graph Models
+- Graph Models are used for highly interconnected data.  For highly interconnected data, relational model is good, document model is bad, and graph model is best.
+- Similar to Document DB, GraphDB also do not enforce schema unlike relational DB.  Therefore it is easier to adapt the applications with changing needs.
+- Examples of GraphDB: Neo4j, and example of graph query language: SPARQL.
 
-##### Disadvantages
-- Changing schema might require downtime.
-
-### Graph Models
-For highly interconnected data, relational is good, document model is bad, and graph model is best.  Examples of GraphDB: Neo4j, and example of graph query language: SPARQL.
-Similar to Document DB, GraphDB also do not enforce schema unlike relational DB.  Therefore it is easier to adapt the applications with changing needs.
 
 Note: Sometimes we need to support both relational and document db, called **Polyglot Persistence**.
 
