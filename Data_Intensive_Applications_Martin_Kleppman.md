@@ -30,26 +30,26 @@ Following are some of the data models used commonly:
 
 To choose the correct data model for our application, we need to understand the type of data and query patterns that our application will have.
 
-#### Document DB Vs Relational DB
-- Document DB:
-  - They use a tree-like structure.  For example, MongoDB, RethinkDB, CouchDB, etc. 
-  - Advantages:
-    - They are good for self-contained data (one-to-many relationships) like a LinkedIn profile for a person.  It does not require joins to fetch details about a person's LinkedIn profile.  Loading this entire self-contained data in one go could provide us good performance.
-    - They are good when our schema needs to change frequently, because we use schema-on-read.  For Relational DB, changing schema requires downtime, and changes could be hard.
-    - They are closer to application's data structures, and we might not need an intermediary like Hibernate or ibatis.
-    - The poor support of joins might not be a problem if our queries can do without joins. 
-  - Disadvantages:
-    - They cannot represent many-to-one or many-to-many relationships well.  For example, if we need to change the name of a city then we might have to update each row in DocumentDB, compared to a single row change in Relational DB.  We can denormalize the data to support many-to-one or many-to-many relationships, but then we will have to do extra work to keep our data consistent. 
-- Relational DB:
-  - They structure data in the form of tables, and use joins to make use of the relationships between tables.
-  - Advantages
-    - They are good for dynamic queries using joins.  For a new query, we just need to create the new indexes.  The query optimizer will take care of retrieving the data in the correct order keeping performance in mind.  Thus it is useful to add new features.
-    - They are good for many-to-one or many-to-many relationships.
-    - Less data redundancy.
-    - Generally supports ACID well which helps us maintain Data Integrity. 
-  - Disadvantages 
-    - They have fixed schema, and changing schema might require downtime.
-    - It might be hard to scale them.
+#### Document DB
+- They use a tree-like structure.  For example, MongoDB, RethinkDB, CouchDB, etc. 
+- Advantages:
+  - They are good for self-contained data (one-to-many relationships) like a LinkedIn profile for a person.  It does not require joins to fetch details about a person's LinkedIn profile.  Loading this entire self-contained data in one go could provide us good performance.
+  - They are good when our schema needs to change frequently, because we use schema-on-read.  For Relational DB, changing schema requires downtime, and changes could be hard.
+  - They are closer to application's data structures, and we might not need an intermediary like Hibernate or ibatis.
+  - The poor support of joins might not be a problem if our queries can do without joins. 
+- Disadvantages:
+  - They cannot represent many-to-one or many-to-many relationships well.  For example, if we need to change the name of a city then we might have to update each row in DocumentDB, compared to a single row change in Relational DB.  We can denormalize the data to support many-to-one or many-to-many relationships, but then we will have to do extra work to keep our data consistent. 
+
+#### Relational DB
+- They structure data in the form of tables, and use joins to make use of the relationships between tables.
+- Advantages
+  - They are good for dynamic queries using joins.  For a new query, we just need to create the new indexes.  The query optimizer will take care of retrieving the data in the correct order keeping performance in mind.  Thus it is useful to add new features.
+  - They are good for many-to-one or many-to-many relationships.
+  - Less data redundancy.
+  - Generally supports ACID well which helps us maintain Data Integrity. 
+- Disadvantages 
+  - They have fixed schema, and changing schema might require downtime.
+  - It might be hard to scale them.
 
 #### Graph Models
 - Graph Models are used for highly interconnected data.  For highly interconnected data, relational model is good, document model is bad, and graph model is best.
@@ -61,27 +61,27 @@ Note: Sometimes we need to support both relational and document db, called **Pol
 
 
 ## Storage and Retrieval
-There are majorly 2 ways in which storage engines operate: Log-structured and Page Oriented.
+To retrieve data faster we use Indexes.  There are multiple ways in which we can build indexes, and each technique is optimized for certain kind of characteristics we might need.  Two of the important techniques in which storage engines use Indexes are: Log-structured and Page Oriented.
 
 ### Indexes
-Additional metadata that helps with faster data lookup.  But, we cannot use indexes everywhere because it degrades data insertion speed.
-Types of Indexes:
-1. Hash based: 
-- Key-Val data is stored in append-only log, and an offset to the data in an in-memory hashmap.  Splitting and merging of the log files are done for higher performance.
-- Advantage: It offers high performance reads, writes, and updates if all keys can fit in the RAM.
-- Disadvantage: Bad for range queries.
-2. SSTables (Sorted String Tables):
-- We keep the key-value pairs sorted by key (using AVL trees), unlike append-only logs.  On DB crash, the data in memory might be lost, so we store this data in an append only log file which can be used for recovery.
-- Advantage: High write throughput since disk writes are sequential.
-- A similar concept is used in Cassandra and Lucene.
-3. B Trees:
-- Most popular and is not log-based unlike earlier ones.
-- Like SSTables it keeps key-value pairs sorted by key for efficient lookup and range queries but unlike Log-structured which writes to variable-sized segments sequentially, it breaks down the DB into fixed size blocks called pages and reads or writes are performed one page at a time. This choice is due to underlying hardware's design which is also arranged in fixed size blocks. Each page can be identified using an address which allows one page refer to another -- like pointers on disk. The pages can be thought to be arranged in a Tree structure (with light locks on the tree for concurrency).
-- For crash recovery, a Write Ahead Log (WAL) is used.
-4. Multi Column indexes:
-- Multiple columns are concatenated as 1 key, and R-trees are used.  For example: Geospatial DBs, where latitude and longitude are merged as 1 key.
-5. Full Text search and Fuzzy Indexes:
-- To handle this type of searches, for example in Lucene, the in-memory SSTable like index is designed as a finite state automaton over the characters similar to a Trie, and then Levenstein automaton and Edit distance algorithms are used.
+- Additional metadata that helps with faster data lookup.  But, we cannot use indexes everywhere because it degrades data insertion speed.
+- Types of Indexes:
+  - Hash based: 
+  - Key-Val data is stored in append-only log, and an offset to the data in an in-memory hashmap.  Splitting and merging of the log files are done for higher performance.
+  - Advantage: It offers high performance reads, writes, and updates if all keys can fit in the RAM.
+  - Disadvantage: Bad for range queries. 
+- SSTables (Sorted String Tables):
+  - We keep the key-value pairs sorted by key (using AVL trees), unlike append-only logs.  On DB crash, the data in memory might be lost, so we store this data in an append only log file which can be used for recovery.
+  - Advantage: High write throughput since disk writes are sequential.
+  - A similar concept is used in Cassandra and Lucene. 
+- B Trees:
+  - Most popular and is not log-based unlike earlier ones.
+  - Like SSTables it keeps key-value pairs sorted by key for efficient lookup and range queries but unlike Log-structured which writes to variable-sized segments sequentially, it breaks down the DB into fixed size blocks called pages and reads or writes are performed one page at a time. This choice is due to underlying hardware's design which is also arranged in fixed size blocks. Each page can be identified using an address which allows one page refer to another -- like pointers on disk. The pages can be thought to be arranged in a Tree structure (with light locks on the tree for concurrency).
+  - For crash recovery, a Write Ahead Log (WAL) is used. 
+- Multi Column indexes:
+  - Multiple columns are concatenated as 1 key, and R-trees are used.  For example: Geospatial DBs, where latitude and longitude are merged as 1 key. 
+- Full Text search and Fuzzy Indexes:
+  - To handle this type of searches, for example in Lucene, the in-memory SSTable like index is designed as a finite state automaton over the characters similar to a Trie, and then Levenstein automaton and Edit distance algorithms are used.
 
 #### B-Trees vs LSM-Tress
 - LSM-Trees are faster for writes whereas B-Trees are thought to be faster for reads.
