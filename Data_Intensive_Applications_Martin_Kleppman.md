@@ -287,10 +287,13 @@ There are 2 main ways to partition a DB with secondary indexes:
 Rebalancing might be required when a node fails or we add more resources to handle increased load or datasize. This might require us to shift the load from one node to another, while continuing to support reads and writes.
 
 Strategies:
-- hash mod n: In this strategy we simply put the keys in node x where x = (hash(key) modulus n).  
+- hash mod n: 
+  - In this strategy we simply put the keys in node x where x = (hash(key) modulus n).  
   - Disadvantage: If number of nodes (n) changes, then we might have to move around a lot of keys. 
-- Fixed number of partitions: Here we create more partitions than required and assign multiple partitions to each node. If a new node joins then it takes a few partitions from each node to create an even distribution. 
-- Dynamic: Partitions are created dynamically. If a partition exceed some threshold size then it is divided into two halves, and small partitions are merged. Ex: HBase 
+- Fixed number of partitions: 
+  - Here we create more partitions than required and assign multiple partitions to each node. If a new node joins then it takes a few partitions from each node to create an even distribution. 
+- Dynamic: 
+  - Partitions are created dynamically. If a partition exceed some threshold size then it is divided into two halves, and small partitions are merged. Ex: HBase 
 - Partitions proportional to number of nodes:
   - In this strategy, the size of partitions grow proportional to the size of the dataset, but when we increase the number of nodes the size of partitions become smaller again. When a new node joins the cluster it chooses a fixed number of partitions and takes half of the values from these. Averaging over a large number of times keeps the partition sizes even. For example, Cassandra.
 
@@ -304,7 +307,7 @@ Transactions are useful to simplify applications by handling partial writes and 
 - Isolation: When multiple transactions are running concurrently, the end result should be as if when they ran serially.
 - Durability: Once a transaction commits, all data is written and never lost, even if there's hardware failure. It can be done by writing to non-volatile memory, or using a Write Ahead Log for recovery.
 
-Systems that do not maintain ACID are sometimes called BASE (Basically Available, Soft State, and Eventual Consistency).
+Systems that do not maintain ACID are sometimes called **BASE (Basically Available, Soft State, and Eventual Consistency)**.
 
 ### Single-Object Writes
 Atomicity and Isolation also apply when a single object is changed. For example, if node fails in between writing a 100kb JSON file.  
@@ -313,65 +316,82 @@ Atomicity can be achieved using:
 1. Using a log for crash recovery
 2. locks
 3. Removing operations doing read-modify-write cycle
-4. Compare-and-Set operation which allows write only when it is not being concurrently modified (** light-weight transaction**)
+4. Compare-and-Set operation which allows write only when it is not being concurrently modified (**light-weight transaction**)
 
 ### Multi-Object Transactions
 Multi-object transactions are required if several pieces of data needs to be kept in sync. They need to determine which Read and Write operations belong to the same transaction. 
 
 ### Isolation Levels
-1. Read committed (Weak)
-2. Snapshot Isolation (Weak)
-3. Serializable (Strong): Only Serializable Isolation protects us from all these race conditions.
+- Isolation levels tell us how much a transaction is isolated from the operation of other transactions.
+- Different isolation levels guarantee different types of data integrity, and stronger data integrity might come at a performance cost.  Therefore, we need to maintain a balance between accuracy and performance.
+- Different isolation levels prevent various types of race conditions like Dirty Reads, Dirty Writes, Read Skew, Lost Updates, Write Skew, Phantom reads etc. 
+- Following are some Isolation Levels commonly used:
+  - Read Uncommitted (Weakest)
+  - Read committed (Weak)
+  - Snapshot Isolation (Weak)
+  - Serializable (Strong): Only Serializable Isolation protects us from all these race conditions.
 
-These isolation levels are characterized by various types of race conditions like Dirty Reads, Dirty Writes, Read Skew, Lost Updates, Write Skew, Phantom reads etc. Different isolation levels guarantee different levels of race conditions that we can avoid.  Applications can make use of these isolation level guarantees provided by the DB to keep its code simple.
+![isolation_levels.png](images/isolation_levels.png)
+&copy; GeeksForGeeks
+
+#### Read Uncommitted
+- Here, a transaction may read uncommitted data from another transaction.  The other transaction might however decide to abort, which means the first transaction have already read data that was actually not written.
+
 
 #### Read Committed
 - It guarantees no dirty reads (only committed data is read) and no dirty writes (while writing we only overwrite committed data).
-- Transactions running at read committed isolation level usually delays the second concurrent write until the first transaction commits or aborts.
-- Problem: Read Committed isolation level however still does not prevent lost updates when a txn modifies after a txn's read but before it's write.
-- Most commonly, DBs prevent dirty writes by allowing only 1 transaction to acquire row-level locks.  Read locks cannot acquire lock until write finished.
+- Transactions running at read committed isolation level usually delay the second concurrent write until the first transaction commits or aborts.
+- Implementation: 
+  - It acquires exclusive locks for writes.  
+  - But requiring locks for read can degrade performance, because a long running write transaction can block all writes.  Therefore, most databases prevent dirty reads using this approach: 
+    - For every object that is written, the database remembers both the old committed value and the new value.
+    - Any other transactions that read the object are simply given the old value. Only when the new value is committed do transactions switch over to reading the new value.
+- Problem: 
+  - Read Committed isolation level however does not prevent lost updates when a txn modifies after a txn's read but before it's write (figure below).
+  - 'Non Repeatable Read' or 'Read Skew'. This happens when we just get unlucky with our read timings. If we read the data again, then we will see correct and consistent data (figure below).
+  
+![lost_update.png](images/lost_update.png)
+Figure: Lost Updates &copy; Dot Net Tutorials and Website Design by Sunrise Pixel
+![read_skew.png](images/read_skew.png)
+Figure: Read Skew &copy; Taken from https://jennyttt.medium.com/dirty-read-non-repeatable-read-and-phantom-read-bd75dd69d03a
 
-
-#### Snapshot Isolation and Repeatable Read
-- Read committed isolation suffers from an anomaly called 'Non Repeatable Read' or 'Read Skew'. This happens in the following scenario when we just get unlucky with our read timings. If we read the data again, then we will see correct and consistent data.
-![read_skew.png](../images/read_skew.png)
-- Snapshot isolation is the most common solution to this problem, where each transaction reads from a consistent state of the DB - each transaction sees all data that was committed at the start of the transaction. It does not care if that transaction has committed during the actual read; it just uses the value that was at the start of the txn. 
-- Snapshot Isolation implementations typically use write locks to prevent dirty writes, but reads do not require locks. 
-
-#### Preventing Lost Updates
-The problem of Lost Updates can occur in a read-modify-write cycle where a value is first read, then updated (potentially based on the previous read), and then written. For example, an account balance is read, updated based on the value and written back. In this scenario one of the writes might be lost because the 2nd write does not consider the first modification.
-
-Solutions:
-1. Atomic writes: Many DBs provide atomic update operations using UPDATE keyword.  Atomic writes takes locks or uses a single thread.
-2. Explicit Locking: Application explicitly locks all objects that are going to be updated using the 'FOR UPDATE' clause which locks all objects returned by a select query. 
-3. Automatically detecting Lost updates: Above methods are sequential. This method allows the transactions to execute in parallel and if a lost update is detected then abort the transaction.
-4. Compare and Set: This atomic operation allows update to happen if the value hasn't yet change since you last read it.
-5. Conflict Resolution and Replication: This is used for multi-leader or leaderless replications, which allows concurrent writes to happen and resolve at application level while reading (among other techniques discussed later).
-
-#### Write Skew and Phantoms
-Write Skews can occur for example in the following figure where a check is made based on some global condition, but then the write itself can change the global condition for other txns running concurrently. In the following figure, it is expected that count never becomes 0, but it can become 0 nonetheless with txns operating concurrently.
+#### Snapshot Isolation (Repeatable Read)
+- Snapshot isolation prevents Non Repeatable Read by requiring each transaction to read from a consistent state of the DB - each transaction sees all data that was committed at the start of the transaction. It does not care if that transaction has committed during the actual read; it just uses the value that was at the start of the txn. 
+- Snapshot Isolation implementations typically use write locks to prevent dirty writes, but reads do not require locks.  For writes, multiple versions of the data are kept which correspond to different transactions (**multi-version concurrency control (MVCC)**).
+- Both Read committed and Snapshot Isolation does not prevent the following problems:
+  - Lost Update Problem:
+    - The problem of Lost Updates can occur in a read-modify-write cycle where a value is first read, then updated (potentially based on the previous read), and then written. For example, an account balance is read, updated based on the value and written back. In this scenario one of the writes might be lost because the 2nd write does not consider the first modification. 
+    - Some solutions:
+      - Atomic writes: Many DBs provide atomic update operations using UPDATE keyword.  Atomic writes takes locks or uses a single thread. 
+      - Explicit Locking: Application explicitly locks all objects that are going to be updated using the 'FOR UPDATE' clause which locks all objects returned by a select query. 
+      - Automatically detecting Lost updates: Above methods are sequential. This method allows the transactions to execute in parallel and if a lost update is detected then abort the transaction. 
+      - Compare and Set: This atomic operation allows update to happen if the value hasn't yet change since you last read it. 
+      - Conflict Resolution and Replication: This is used for multi-leader or leaderless replications, which allows concurrent writes to happen and resolve at application level while reading (among other techniques discussed later). 
+  - Write Skew and Phantoms:
+    - Write Skews can occur for example in the following figure where a check is made based on some global condition, but then the write itself can change the global condition for other txns running concurrently. In the following figure, it is expected that count never becomes 0, but it can become 0 nonetheless with txns operating concurrently.
+    - Solutions to Write Skew:
+      - Atomic single-object solutions does not help because multiple objects are involved. 
+      - Implement constraints using multiple objects if possible, for example using triggers or materialized views etc. 
+      - If using serializable isolation level is not possible, then next best option is to use 'FOR UPDATE' clause to lock rows on which the transaction depends.
 ![write_skew.png](../images/write_skew.png)
 
-Solutions to Write Skew:
-1. Atomic single-object solutions does not help because multiple objects are involved.
-2. Implement constraints using multiple objects if possible, for example using triggers or materialized views etc.
-3. If using serializable isolation level is not possible, then next best option is to use 'FOR UPDATE' clause to lock rows on which the transaction depends.
 
 #### Serializability
-Techniques to implement Serializable Isolation:
-- Actual Serial Execution
-  - Here one transaction is executed one at a time serially on a single thread.
-  - Disadvantage: It's throughput is limited to a single CPU core. 
-- 2 Phase Locking (2PL):
-  - Several transactions are allowed to read concurrently as long as no transaction is writing to it. Exclusive locks are required for writes.
-  - This is in contrast to Snapshot Isolation where readers and writers never block each other. This difference makes 2PL overcome all the race conditions discussed earlier including lost updates and write skew.
-  - To read, a Txn must obtain a shared lock. To write, a Txn must obtain an exclusive lock. 
-  - Predicate Locks:  Predicate Locks are used to stop Phantoms causing Write Skew.  It works similar to shared/exclusive lock but the locks does not belong to an object/row, it belongs to all objects that match a search condition.  Predicate Locks do not perform well, and so Index-range Locks are used more commonly.
-  - Index-Range Locks: Here a greater set of predicates is matched. This approximation of the search condition is attached to one of the indexes (either the room_id or time index). Now, if another txn wants to modify this same overlapping condition then it will see the shared lock on the index, and consequently it will wait for that lock to be released. 
-- Serializable Snapshot Isolation (SSI):
-  - 2PC implementations like 2 phase locking don't perform well, and serial executions do not scale well. 
-  - SSI provides full serializability with a small performance penalty compared to Snapshot Isolation. SSI is new, so its adoption is still not widespread. 
-  - Compared to 2 phase locking or serializable executions which are pessimistic, this is an optimistic algorithm. Instead of blocking if something dangerous could happen, txns continue anyway hoping that everything will turn out good in the end. When a txn wants to commit the DB checks whether isolation was violated, and if so, the txn is aborted and has to be retried. Only txns that executed serially are allowed to commit.
+- It guarantees that the database prevents all possible race conditions.
+- Techniques to implement Serializable Isolation:
+  - Actual Serial Execution
+    - Here one transaction is executed one at a time serially on a single thread.
+    - Disadvantage: It's throughput is limited to a single CPU core. 
+  - 2 Phase Locking (2PL):
+    - Several transactions are allowed to read concurrently as long as no transaction is writing to it. Exclusive locks are required for writes.
+    - This is in contrast to Snapshot Isolation where readers and writers never block each other. This difference makes 2PL overcome all the race conditions discussed earlier including lost updates and write skew.
+    - To read, a Txn must obtain a shared lock. To write, a Txn must obtain an exclusive lock. 
+    - Predicate Locks:  Predicate Locks are used to stop Phantoms causing Write Skew.  It works similar to shared/exclusive lock but the locks does not belong to an object/row, it belongs to all objects that match a search condition.  Predicate Locks do not perform well, and so Index-range Locks are used more commonly.
+    - Index-Range Locks: Here a greater set of predicates is matched. This approximation of the search condition is attached to one of the indexes (either the room_id or time index). Now, if another txn wants to modify this same overlapping condition then it will see the shared lock on the index, and consequently it will wait for that lock to be released. 
+  - Serializable Snapshot Isolation (SSI):
+    - 2PC implementations like 2 phase locking don't perform well, and serial executions do not scale well. 
+    - SSI provides full serializability with a small performance penalty compared to Snapshot Isolation. SSI is new, so its adoption is still not widespread. 
+    - Compared to 2 phase locking or serializable executions which are pessimistic, this is an optimistic algorithm. Instead of blocking if something dangerous could happen, txns continue anyway hoping that everything will turn out good in the end. When a txn wants to commit the DB checks whether isolation was violated, and if so, the txn is aborted and has to be retried. Only txns that executed serially are allowed to commit.
 
 
 # Problems with Distributed Systems
@@ -382,25 +402,30 @@ Distributed Systems are hard because it works with unreliable network, and we ca
 4. Fencing Locks: On wakeup from process pause the old leader might still think that it is the new leader, but the Quorum decided to replace the process-paused leader already.  To overcome this split-brain (multiple leaders), we can attach a monotonically increasing ID to each locks, and this value can be used to decide the latest leader.
 5. Byzantine Faults: A system is Byzantine Fault Tolerant if it continues to operate correctly even if some of the nodes are malfunctioning and not obeying the protocol, or if malicious attackers are interfering the network.  Protection from Byzantine Faults might require hardware support. For web apps we can use input validation to prevent it. In peer-to-peer network where there is no central authority, Byzantine Faults may occur more frequently.
 
-# Linearizability
-- One of the strongest consistency models.  Eventual Consistency is a weak guarantee because it does not say anything about when a data would be eventually available.
-- In Eventual Consistency 2 different replicas may provide different answers if one of them is lagging behind and this can confuse the users. Linearizability gives only one response. It is also called Atomic/Strong/Immediate/External Consistency. The basic idea is to make a system appear as if there is only one copy of the data and all operations on it are atomic.
-- Unlike Serializability, Linearizability does not group operations together. The read and write request could be independent and thus write skew cannot happen. A DB may provide both Serializability and Linearizability, and this combination is called strict-serializability or strong one-copy serializability. Implementations of Serializability based on 2 phase locking or actual serializability are typically linearizable, but Snapshot Isolation Serializability does not guarantee that.
-- Linearizability is useful for Leader Election, reliable counter increments etc.
-- Implementation: If only a single node holds one copy of the data and all operations on this is atomic, then it might be lost/inaccessible if the node fails - and hence not fault tolerant. The most common way to make a system fault-tolerant is to use replication. Here's a discussion of if replication can be made linearizable:
-  - Single-Leader Replication: They are potentially linearizable if we read from the leader or from the synchronous followers. 
-  - Consensus Algorithms 
-  - Multi-Leader Replication: Linearizable even if network interruption happens between 2 datacenters, because the clients just needs to connect to it's "home" datacenter. 
-  - Leaderless Replications are probably not linearizable because of concurrency issues. 
-  - Strict Quorums: Strict Quorums are not linearizable due to variable networks delays; and because the reads may read from different set of nodes.   It is possible to make dynamo-style quorums at the cost of reduced performance; a reader must perform read repair synchronously and a writer must read the latest state of quorum before sending its writes. But this makes only read and write linearizable, not compare-and-set.
+# Consistency and Consensus
+## Consistency Guarantees
+  - Eventual Consistency: 
+    - Eventual Consistency is a weak guarantee because it does not say anything about when a data would be eventually available.
+    - Problem:  In Eventual Consistency 2 different replicas may provide different answers if one of them is lagging behind and this can confuse the users. Linearizability gives only one response. It is also called Atomic/Strong/Immediate/External Consistency. The basic idea is to make a system appear as if there is only one copy of the data and all operations on it are atomic.
+  - Linearizability
+    - Linearizability is one of the strongest consistency models.
+    - Unlike Serializability, Linearizability does not group operations together. The read and write request could be independent and thus write skew cannot happen. A DB may provide both Serializability and Linearizability, and this combination is called strict-serializability or strong one-copy serializability. Implementations of Serializability based on 2 phase locking or actual serializability are typically linearizable, but Snapshot Isolation Serializability does not guarantee that.
+    - Linearizability is useful for Leader Election, reliable counter increments etc.
+    - Implementation: If only a single node holds one copy of the data and all operations on this is atomic, then it might be lost/inaccessible if the node fails - and hence not fault tolerant. The most common way to make a system fault-tolerant is to use replication. Here's a discussion of if replication can be made linearizable:
+      - Single-Leader Replication: They are potentially linearizable if we read from the leader or from the synchronous followers. 
+      - Consensus Algorithms 
+      - Multi-Leader Replication: Linearizable even if network interruption happens between 2 datacenters, because the clients just needs to connect to it's "home" datacenter. 
+      - Leaderless Replications are probably not linearizable because of concurrency issues. 
+      - Strict Quorums: Strict Quorums are not linearizable due to variable networks delays; and because the reads may read from different set of nodes.   It is possible to make dynamo-style quorums at the cost of reduced performance; a reader must perform read repair synchronously and a writer must read the latest state of quorum before sending its writes. But this makes only read and write linearizable, not compare-and-set.
 
-# The CAP Theorem
-Choose any 2 between Consistency, Availability, and Partition Tolerance. Since Partition tolerance is beyond our control we need to choose one of the other 2.
 
-## Sequence Number Ordering
-We can use sequence numbers to order events. They are counters which is incremented on every operation. Thus, every operation has an unique sequence number and we can always compare two sequence numbers. We can create sequence numbers that is consistent with causality. For single-leader the leader can simply assign a monotonically increasing number to each operation in the replication log, and the followers can simply use this order. For leaderless and multi-leader systems, we use Lamport Timestamps.
+The CAP Theorem: Choose any 2 between Consistency, Availability, and Partition Tolerance. Since Partition tolerance is beyond our control we need to choose one of the other 2.
 
-Lamport Timestamps are a pair of (counter, nodeId). 
+## Causality
+- To maintain causality we need to know which operation happened before which.  For example, we need to present question before answer, even though a node might receive the answer before the question because of network delays.
+- Implementation: Using Sequence Number Ordering 
+  - We can use sequence numbers to order events. They are counters which is incremented on every operation. Thus, every operation has an unique sequence number and we can always compare two sequence numbers. We can create sequence numbers that is consistent with causality. For single-leader the leader can simply assign a monotonically increasing number to each operation in the replication log, and the followers can simply use this order. For leaderless and multi-leader systems, we use Lamport Timestamps. 
+  - Lamport Timestamps are a pair of (counter, nodeId). 
 
 ## Distributed Transactions and Consensus
 Consensus is required for Leader Election and Atomic commit. 
@@ -414,7 +439,7 @@ Consensus is required for Leader Election and Atomic commit.
 
 ## Membership and Coordination Services
 - Zookeeper, etcd etc. are "distributed key-value services" or "coordination and configuration services". They are designed to hold small amounts of data that can fit entirely in memory (although they still write to disk for durability). This small amount of data is replicated across all nodes using a fault-tolerant total order broadcast algorithm.
-- Zookeper uses fencing token to handle process pauses. Client maintains a long-lived session with Zookeeper and they occasionally bounce heartbeats and in this way Zookeeper make sure if a node is dead. Normally data kept in zookeeper is slow changing like alive_nodes+their-ip. It also offers service discovery.
+- Zookeeper uses fencing token to handle process pauses. Client maintains a long-lived session with Zookeeper and they occasionally bounce heartbeats and in this way Zookeeper make sure if a node is dead. Normally data kept in zookeeper is slow changing like alive_nodes+their-ip. It also offers service discovery.
 
 
 # Derived Data
