@@ -1,6 +1,6 @@
 # Foundations
 
-**Data Intensive applications** are the ones where we need to deal with a huge amount of data.  For example, typical internet companies like Google, Amazon, Twitter etc.  On the other hand, **Compute Intensive applications** are the one where the bottleneck is CPU/GPU speed.  For example, Crypto Mining, ML applications, etc. where there might just be a few thousand data points, but processing them requires huge amount of compute.
+**Data Intensive applications** are the ones where we need to deal with a huge amount of data.  For example, typical internet companies like Google, Amazon, Twitter etc.  On the other hand, **Compute Intensive applications** are the one where the bottleneck is CPU/GPU speed.  These types of applications might need to handle only a few thousand data points, but each data point requires a huge amount of computation.  For example, Crypto Mining, ML applications, and so on.
 
 To handle Data Intensive applications we typically use **NoSQL, Message Brokers, Caches, Search Indexes, Batch Processing, Stream Processing**, and so on.  The following topics will help us understand the different techniques/concepts, and guide us in choosing the right technology to make our application scalable, highly available, and easily maintainable.
 
@@ -26,9 +26,9 @@ Following are some of the data models used commonly:
 1. Relational
 2. Document Based
 3. Graph Model
-4. Some others are: Genome DB, Full Text Search DB, Immutable DBs, Big Data for physics handling petabytes, Time Series DB, Vector DB, Analytics DB etc.
+4. Specialized: Genome DB, Full Text Search DB, Immutable DBs, Big Data for physics handling petabytes, Time Series DB, Vector DB, Analytics DB etc.
 
-To choose the correct data model for our application, we need to understand the type of data and query patterns that our application will have.
+To choose the correct data model for our application, we need to understand the **type of data and query patterns** that our application will have.
 
 #### Document DB
 - They use a tree-like structure.  For example, MongoDB, RethinkDB, CouchDB, etc. 
@@ -54,7 +54,8 @@ To choose the correct data model for our application, we need to understand the 
 #### Graph Models
 - Graph Models are used for highly interconnected data.  For highly interconnected data, relational model is good, document model is bad, and graph model is best.
 - Similar to Document DB, GraphDB also do not enforce schema unlike relational DB.  Therefore it is easier to adapt the applications with changing needs.
-- Examples of GraphDB: Neo4j, and example of graph query language: SPARQL.
+- Similar to how SQL is used to query RelationalDB, SPARQL is one of the languages using which we can work with GraphDB.
+- Examples of GraphDB: Neo4j, OrientDB etc.
 
 
 Note: Sometimes we need to support both relational and document db, called **Polyglot Persistence**.
