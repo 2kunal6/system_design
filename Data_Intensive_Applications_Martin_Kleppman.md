@@ -452,98 +452,139 @@ Derived data is derived from system of records, also called source of truth. For
 3. Stream processing (near real-time or nearline): It is somewhere between online and offline systems. Like batch processing it takes input and produces output (rather than responding to requests). However a stream job operates on an even shortly after it happened, unlike batch which operates on a fixed input set. It requires stream systems to have lower latency than batch systems, but they are built on top of batch systems.
 
 ## Batch Processing
-- Unix Pipelines: Unix tools process GBs of log files in seconds.  It automatically parallelizes to all CPU cores, and handles data greater than memory size by spilling into disk.
-- Map Reduce:
-  - MapReduce is a programming framework using which we can write code to process large datasets in a distributed filesystem like HDFS.  It can be used to create search indexes like Lucene or to precompute ML recommendations.
-  - Data processing pattern:
-    - Read a set of input files and break it down into records. For example, each record is a line in a log file.
-    - Call the mapper function to extract a key and a value from each input record.
-    - Sort all the key-value pairs by key. This step is implicit, and mapper always sorts the output before giving it to the reducer.
-    - Call the reducer function to iterate over the sorted key-value pairs. Since the keys are sorted, so some calculations like uniq becomes easy on memory.
-  - If we want to sort by the count, then we need a second sorting stage which we can implement by writing a second MapReduce job and using the output of the first job as the input for the second job.
-  - The parallelization of MapReduce is based on partitioning: the input to the job is typically a directory in HDFS, and each file or fileblock within the input directory is considered to be a separate partition that can be processed by a separate map task. Each input file is typically hundreds of megabytes in size.
-  - Sort-Merge Joins: It is used when we need to join data from 2 datasets.  Here, 2 sets of mappers produce the key-value pairs for each dataset and keep them together.  Then the reducer function can be called for each key once to produce the final output.
-    - For example, 2 mappers process over click and user_profile datasets and puts the user_id+click_type and user_id+user_age together sorted by user_id.  The reducer function can be called for each userId once, and it can store the first row (age) in a local variable, and iterating over the click_event, outputting pairs of viewed-url and viewer-age-in-years.  Subsequent MapReduce jobs can then calculate the distribution of viewer ages by URL and sort it.
-  - Hot Keys: 
-    - Bringing all values with the same key to the same place might break for 'hot keys' (ex. celebrities) and might lead to data skew (or hotspots) i.e. one reducer might have significantly more data than others. Since MapReduce jobs are complete only when all of its mappers and reducers have completed, any subsequent jobs might have to wait for the slowest reducer before they can start. 
-    - If a join input has a hot key, there are a few algorithms we can use to compensate. For example, the skewed join method in pig runs a sampling first to determine which keys are hot. For Hive, we need to explicitly mention the hot key in the metadata. Grouping happens in 2 stages: the first grouping makes the output more compact, and the 2nd grouping works on this compacted data.
-  - Map side joins:
-    - The previous approach is called reduce-side joins which do not assume anything about the data distribution. Reduce-side joins may be quite expensive. 
-    - Map-side joins work if we can make some assumptions about the data. These jobs have no reducers and no sorting. It's just one mapper reading one input file block from the distributed file system and writing one output to the file system. 
-    - Techniques:
-      - Broadcast Hash Joins: It works when a big dataset needs to be joined with a small dataset which is small enough to be entirely loaded in the memory of each mapper. We can load entirely into memory or on a read-only index on the local disk, which doesn't require it to fit this into memory. 
-      - Partitioned Hash Joins:  If the inputs to the map-side joins are partitioned in the same way, then the hash join can be applied to each partition independently. For example, the data in click_event and user_data partitioned ny the last digit of their user_id.  These are also called bucketed map joins in Hive. 
-      - Map-side merge joins:  It works if the input dataset is not only partitioned in the same way, but also sorted based on the same key. Here, it doesn't matter if the inputs don't fit in memory because merging is done same as the reducer. 
-    - The output of reduce-side join is partitioned and sorted by key, but for map-side join the output is sorted and partitioned in the same way as the input. Map-side join also makes assumption of the data layout. Number of partitions, etc. can affect performance.
-  - Hadoop vs Distributed DBs:
-    - Data type: Distribute DBs need to decide on a schema beforehand, whereas in Hadoop we can simply dump the data, and later we can figure out how to process the raw data. This is possible because of the general purpose MapReduce and HDFS. Also, HDFS simply stores sequences of bytes which can be anything like images, videos, texts, sensor data etc. 
-    - Processing models: MPPs use sql syntax and are limited in expression, whereas Hadoop is general purpose. We cannot write ML algos easily with SQL, but we can write them using Mapreduce. 
-    - Handling Fault Tolerance: MapReduce can handle fault tolerance better because data is written to disk, and reruns can run from these intermediate steps. In Distributed DBs data is kept in memory, so rerunning cannot start from intermediate steps. It is designed this way because Distributed DBs need to respond within minutes, whereas Hadoop jobs can run for days. 
-- Beyond MapReduce:  MapReduce is robust and can handle humongous amounts of data (albeit slowly) and on multi-tenant systems with frequent task terminations. On the other hand it might be slower than other tools which does not write intermediate results to files.
-  - MapReduce writing intermediate files to disk makes it slow sometimes. So several new execution engines were created like Spark and Flink (called dataflow engines). They handle the entire workflow as one job rather than dividing them into subjobs.
-  - High level APIs like spark, hive etc. can optimize joins by changing the join order for example so that less amount of data is required to be in memory.  They can also make use of column-oriented storage to load only the required columns.  They use vectorized execution for faster execution, by using tight inner loops for example to make use of CPU cache while running loops, and avoiding function calls. 
-- Graphs and Iterative Processing:
-  - Batch processing on graphs is often used in ML algorithms like recommendation engines or ranking systems (like pagerank).  Many Graph algorithms work by traversing one vertex/edge at a time (in iterations) until some termination condition is met.  
-  - The Pregel Processing Model: It is also called the Pregel model, based on Google's paper named Pregel.  It works by message passing between vertices.  In each iteration we need to pass the messages to only a subset of the vertices, so it works efficiently compared to MapReduce which processes every row in each iteration. 
-  - Apache Giraph, Spark's GraphX API etc.
+Batch Processing can be done using Unix Pipelines, which is simple, but for huge amount of data we typically use MapReduce.
+
+Unix Pipelines: Unix tools process GBs of log files in seconds.  It automatically parallelizes to all CPU cores, and handles data greater than memory size by spilling into disk.
+
+### Map Reduce:
+- MapReduce is a programming framework using which we can write code to process large datasets in a distributed filesystem like HDFS.  It can be used to create search indexes like Lucene or to precompute ML recommendations.
+- Data processing pattern:
+  - Read a set of input files and break it down into records. For example, each record is a line in a log file.
+  - Call the mapper function to extract a key and a value from each input record.
+  - Sort all the key-value pairs by key. This step is implicit, and mapper always sorts the output before giving it to the reducer.
+  - Call the reducer function to iterate over the sorted key-value pairs. Since the keys are sorted, so some calculations like uniq becomes easy on memory.
+- If we want to sort by the count, then we need a second sorting stage which we can implement by writing a second MapReduce job and using the output of the first job as the input for the second job.
+- The parallelization of MapReduce is based on partitioning: the input to the job is typically a directory in HDFS, and each file or fileblock within the input directory is considered to be a separate partition that can be processed by a separate map task. Each input file is typically hundreds of megabytes in size.
+
+#### Sort-Merge Joins
+It is used when we need to join data from 2 datasets.  Here, 2 sets of mappers produce the key-value pairs for each dataset and keep them together.  Then the reducer function can be called for each key once to produce the final output.
+
+For example, 2 mappers process over click and user_profile datasets and puts the user_id+click_type and user_id+user_age together sorted by user_id.  The reducer function can be called for each userId once, and it can store the first row (age) in a local variable, and iterating over the click_event, outputting pairs of viewed-url and viewer-age-in-years.  Subsequent MapReduce jobs can then calculate the distribution of viewer ages by URL and sort it.
+#### Hot Keys 
+Bringing all values with the same key to the same place might break for 'hot keys' (ex. celebrities) and might lead to data skew (or hotspots) i.e. one reducer might have significantly more data than others. Since MapReduce jobs are complete only when all of its mappers and reducers have completed, any subsequent jobs might have to wait for the slowest reducer before they can start. 
+
+If a join input has a hot key, there are a few algorithms we can use to compensate. For example, the skewed join method in pig runs a sampling first to determine which keys are hot. For Hive, we need to explicitly mention the hot key in the metadata. Grouping happens in 2 stages: the first grouping makes the output more compact, and the 2nd grouping works on this compacted data.
+
+#### Map side joins:
+  - The previous approach is called reduce-side joins which do not assume anything about the data distribution. Reduce-side joins may be quite expensive. 
+  - Map-side joins work if we can make some assumptions about the data. These jobs have no reducers and no sorting. It's just one mapper reading one input file block from the distributed file system and writing one output to the file system. 
+  - Techniques:
+    - Broadcast Hash Joins: It works when a big dataset needs to be joined with a small dataset which is small enough to be entirely loaded in the memory of each mapper. We can load entirely into memory or on a read-only index on the local disk, which doesn't require it to fit this into memory. 
+    - Partitioned Hash Joins:  If the inputs to the map-side joins are partitioned in the same way, then the hash join can be applied to each partition independently. For example, the data in click_event and user_data partitioned ny the last digit of their user_id.  These are also called bucketed map joins in Hive. 
+    - Map-side merge joins:  It works if the input dataset is not only partitioned in the same way, but also sorted based on the same key. Here, it doesn't matter if the inputs don't fit in memory because merging is done same as the reducer. 
+  - The output of reduce-side join is partitioned and sorted by key, but for map-side join the output is sorted and partitioned in the same way as the input. Map-side join also makes assumption of the data layout. Number of partitions, etc. can affect performance.
+
+#### Hadoop vs Distributed DBs:
+  - Data type: Distribute DBs need to decide on a schema beforehand, whereas in Hadoop we can simply dump the data, and later we can figure out how to process the raw data. This is possible because of the general purpose MapReduce and HDFS. Also, HDFS simply stores sequences of bytes which can be anything like images, videos, texts, sensor data etc. 
+  - Processing models: MPPs use sql syntax and are limited in expression, whereas Hadoop is general purpose. We cannot write ML algos easily with SQL, but we can write them using Mapreduce. 
+  - Handling Fault Tolerance: MapReduce can handle fault tolerance better because data is written to disk, and reruns can run from these intermediate steps. In Distributed DBs data is kept in memory, so rerunning cannot start from intermediate steps. It is designed this way because Distributed DBs need to respond within minutes, whereas Hadoop jobs can run for days. 
+
+### Beyond MapReduce
+MapReduce is robust and can handle humongous amounts of data (albeit slowly) and on multi-tenant systems with frequent task terminations. On the other hand it might be slower than other tools which does not write intermediate results to files.
+
+MapReduce writing intermediate files to disk makes it slow sometimes. So several new execution engines were created like Spark and Flink (called dataflow engines). They handle the entire workflow as one job rather than dividing them into subjobs.
+
+High level APIs like spark, hive etc. can optimize joins by changing the join order for example so that less amount of data is required to be in memory.  They can also make use of column-oriented storage to load only the required columns.  They use vectorized execution for faster execution, by using tight inner loops for example to make use of CPU cache while running loops, and avoiding function calls. 
+
+### Graphs and Iterative Processing:
+Batch processing on graphs is often used in ML algorithms like recommendation engines or ranking systems (like pagerank).  Many Graph algorithms work by traversing one vertex/edge at a time (in iterations) until some termination condition is met.  
+
+The Pregel Processing Model: It is also called the Pregel model, based on Google's paper named Pregel.  It works by message passing between vertices.  In each iteration we need to pass the messages to only a subset of the vertices, so it works efficiently compared to MapReduce which processes every row in each iteration. 
+
+Examples tools used in batch processing of Graphs: Apache Giraph, Spark's GraphX API etc.
 
 ## Stream Processing
-- In batch processing the input is of finite size, so the batch process knows when it has finished reading all data. For data coming continuously like user clicks, batch processes partitions the data artificially into fixed chunks. For example, running the batch process at the end of each day. 
-- In batch processing, output data is reflected after a delay which might be slow for many cases. To reduce the delay, we can process the data at the end of every second or continuously, abandoning the concept of time slices and processing every event as it happens. This is the idea behind Stream Processing.
-- Transmitting Even Streams: In stream processing a record is most commonly called an event, which is an immutable self contained object that contains the details of something happening at some point of time. An event usually contains a timestamp. 
-  - An event is generated once by a producer (or publisher) and potentially processed by multiple consumers (or subscribers). Events are usually grouped in topics. 
-  - In batch processing the consumers polls the DB to get the data that has arrived since it last checked. But for streaming this polling can be expensive, and so usually the consumers are notified when a new event occurs.
-- Messaging Systems: Specialized systems to notify consumers of a new event. 
-  - Direct communication channels like a unix pipe or TCP can connect only one producer to one consumer, whereas messaging systems require multiple producers to be able to send messages to a topic, and multiple consumers to consume from that topic. 
-  - Within the publish/subscribe model, there are different strategies based on the following different situations:
+
+In batch processing the input is of finite size, so the batch process knows when it has finished reading all data. For data coming continuously like user clicks, batch processes partitions the data artificially into fixed chunks. For example, running the batch process at the end of each day. 
+
+In batch processing, output data is reflected after a delay which might be slow for many cases. To reduce the delay, we can process the data at the end of every second or continuously, abandoning the concept of time slices and processing every event as it happens. This is the idea behind Stream Processing.
+
+### Transmitting Even Streams 
+In stream processing a record is most commonly called an event, which is an immutable self contained object that contains the details of something happening at some point of time. An event usually contains a timestamp. 
+
+An event is generated once by a producer (or publisher) and potentially processed by multiple consumers (or subscribers). Events are usually grouped in topics. 
+
+In batch processing the consumers polls the DB to get the data that has arrived since it last checked. But for streaming this polling can be expensive, and so usually the consumers are notified when a new event occurs.
+
+### Messaging Systems
+They are Specialized systems to notify consumers of a new event. 
+
+Direct communication channels like a unix pipe or TCP can connect only one producer to one consumer, whereas messaging systems require multiple producers to be able to send messages to a topic, and multiple consumers to consume from that topic. 
+
+Within the publish/subscribe model, there are different strategies based on the following different situations:
   - What happens if producer sends messages faster than the consumer can process them? 
     - In this case there are 3 options: drop messages, buffer messages in a queue, backpressure (block producer from sending more messages).   In queue, what happens if queue can no longer fit in memory? does it crash, does it write to disk (and if yes then does disk access degrade performance)? 
   - What happens in nodes crash or go offline? Are the messages lost? 
     - Durability of messages has a cost of writing to disk and replication. If we can afford to lost some messages then we can get a higher throughput and low latency.
   - Some message brokers participate in 2-phase commit, making them similar to DBs, but unlike DBs they delete messages once processed (work with the assumption that there will be less data).  Also, unlike DB they can notify clients when data changes.
-- Direct Communication: It works for certain specialized situations but the application has to take care when messages are lost.  For example, UDP multicast (for low latency systems like finance), Brokerless messaging services like ZeroMQ, StatsD, HTTP/RPC.
-- When multiple consumers read messages from the same topic, 2 main patterns of messaging are used:
+
+#### Direct Communication
+It works for certain specialized situations but the application has to take care when messages are lost.  For example, UDP multicast (for low latency systems like finance), Brokerless messaging services like ZeroMQ, StatsD, HTTP/RPC.
+
+When multiple consumers read messages from the same topic, 2 main patterns of messaging are used:
   - Load Balancing: Each message is delivered to one arbitrary consumer.  This pattern is useful when the message processing is heavy, and we want to add more consumers to increase parallelization. 
   - Fanout: Each message is delivered to all of the consumers.
   - Combination of Load Balancing and Fanout.
   - Acknowledgements and Redelivery: Consumers might crash. So brokers wait for the consumers to tell them once it has finished processing before removing the message from the queue. If it does not wait then messages can be lost. If message is processed but acknowledgement is lost, then message is redelivered for consumer processing. Handling this case requires atomic commit protocol. This redelivery along with load balancing can make the consumers receive the messages in a different order. To avoid this issue we can use a different queue per consumer (not load balancing), if message ordering is important.
-- Partitioned Logs: Log-based message brokers stores the message, but without increasing the latency too much (reading from the log is slower compared to in-memory read). This is required because otherwise once a message is wrongly deleted, it is lost forever.
-  - Producer appends messages to an append-only log and consumer reads from a certain offset of this log.  The log is partitioned across multiple machines.
-  - Sequence number is used for each message.  This sequence number provides ordering within a single partition, but there's no such guarantee across partitions.
-  - Ex: Apache Kafka.
-  - Even though these systems write msgs to disk they can process millions of messages per second using partitions and replication for fault-tolerance.
-  - The log based approach typically supports fan out because several consumers can independently read the logs without affecting each other. To achieve load balancing across a group of consumers, instead of assigning individual messages to consumer clients, the broker can assign entire partitions to nodes in the consumer group.
-  - Typically when a consumer has been assigned a log partition, it reads the messages in the log partition sequentially in a simple single-threaded manner, but this method has some downsides:
-    - The number of nodes sharing the topic cannot be greater than the number of partitions. 
-    - If a single message is low to process, it holds up the processing of subsequent msgs in that partition. 
-  - Thus in situations where messages may be expensive to process and we want to parallelize processing on a msg-by-msg basis, and where msg ordering is not important, the JMS/AMQP style is preferred. But where high msg throughput, and short msg processing time, and msg ordering required, the log-based approach works well.
-  - Only appending might lead to running out of disk space. So, we partition the logs into segments and periodically clean/archive the older segments. But if the consumers are slow, then it might still point to the deleted segments, but this is very unlikely practically with monitoring tools and all. However this does not affect other consumers. This is also unlike traditional msg brokers which keeps msgs in memory and uses space. 
-  - Also unlike JMS/AMQP style, processing and acknowledging is a destructive process where msgs are deleted once acknowledged. However log-based approach writes the msg, and we can configure a consumer to consume from a random offset. So, it allows for more experimentation and easy recovery from faults.
-- Change Data Capture:
+
+#### Partitioned Logs
+- Log-based message brokers stores the message, but without increasing the latency too much (reading from the log is slower compared to in-memory read). This is required because otherwise once a message is wrongly deleted, it is lost forever.  For example, Apache Kafka.
+- Producer appends messages to an append-only log and consumer reads from a certain offset of this log.  The log is partitioned across multiple machines.
+- Sequence number is used for each message.  This sequence number provides ordering within a single partition, but there's no such guarantee across partitions.
+- Even though these systems write msgs to disk they can process millions of messages per second using partitions and replication for fault-tolerance.
+- The log based approach typically supports fan out because several consumers can independently read the logs without affecting each other. To achieve load balancing across a group of consumers, instead of assigning individual messages to consumer clients, the broker can assign entire partitions to nodes in the consumer group.
+- Typically when a consumer has been assigned a log partition, it reads the messages in the log partition sequentially in a simple single-threaded manner, but this method has some downsides:
+  - The number of nodes sharing the topic cannot be greater than the number of partitions. 
+  - If a single message is low to process, it holds up the processing of subsequent msgs in that partition. 
+- Thus in situations where messages may be expensive to process and we want to parallelize processing on a msg-by-msg basis, and where msg ordering is not important, the JMS/AMQP style is preferred. But where high msg throughput, and short msg processing time, and msg ordering required, the log-based approach works well.
+- Only appending might lead to running out of disk space. So, we partition the logs into segments and periodically clean/archive the older segments. But if the consumers are slow, then it might still point to the deleted segments, but this is very unlikely practically with monitoring tools and all. However this does not affect other consumers. This is also unlike traditional msg brokers which keeps msgs in memory and uses space. 
+- Also unlike JMS/AMQP style, processing and acknowledging is a destructive process where msgs are deleted once acknowledged. However log-based approach writes the msg, and we can configure a consumer to consume from a random offset. So, it allows for more experimentation and easy recovery from faults.
+
+### Change Data Capture:
   - To read DB logs and replicate the changes in a different system, for example to keep the DB and cache in sync. It is especially beneficial if the changes are made available as a stream immediately after they are written. Ex. LinkedIn's Databus, and MongoRiver for MongoDB. CDC is async and thus fast for writes but problems with replication lag may apply. 
   - To add a new system, it can read the entire log history to construct its state. But, reading the entire history can take a lot of time, so we use log compaction. This compaction feature is supported by Kafka. 
   - To support CDC, DBs are also providing APIs. Ex. Kafka connect.
-- Event Sourcing: Similar to CDC, Event Sourcing stores application changes as log of change events. But Event Sourcing uses this idea at the level of application. In CDC, the DBs are mutable and we can update/delete records. In Event Sourcing the application logic is built on the basis of immutable events. Ex: EventStore
-- Partitioning and Parellalization works similar to MapReduce and dataflow engines. The one crucial difference is that a stream never ends. So sorting does not make sense and sort-merge joins do not work. Streaming jobs also use a different fault-tolerance mechanism. We can restart batch jobs if it fails, but a streaming job that has been running for years might not be feasible to run from the start.
-- Uses of Stream Processing 
+
+### Event Sourcing 
+Similar to Change Data Capture, Event Sourcing stores application changes as log of change events. But Event Sourcing uses this idea at the level of application. In CDC, the DBs are mutable and we can update/delete records. In Event Sourcing the application logic is built on the basis of immutable events. Ex: EventStore
+
+
+Partitioning and Parellalization works similar to MapReduce and dataflow engines. The one crucial difference is that a stream never ends. So sorting does not make sense and sort-merge joins do not work. Streaming jobs also use a different fault-tolerance mechanism. We can restart batch jobs if it fails, but a streaming job that has been running for years might not be feasible to run from the start.
+
+### Uses of Stream Processing 
   - Monitoring in fraud detection or financial systems. 
   - Complex Event Processing: It allows us to specify rules to search for certain patterns of events in a stream. Ex: SQLstream
   - Stream Analytics: aggregation, statistics, probabilistic algorithms like bloom filters, approx percentiles.  Ex: Apache Storm, Spark Streaming, Kafka Streams, Flink.
   - Maintaining Materialized views like caches, indexes etc.
   - Message Passing and RPC: Ex. using Apache Storm's distributed RPC which match user queries with stream events and return results to the users who queried.
-- Stragler events: Events that occurred in a particular window might arrive late due to network problems or queues. We can ignore them if they are less in number or recalculate the values.
-- Types of Windows to calculate aggregations 
+
+### Stragler events
+Events that occurred in a particular window might arrive late due to network problems or queues. We can ignore them if they are less in number or recalculate the values.
+
+### Types of Windows to calculate aggregations 
   - Tumbling Window: These are of fixed length and every event belongs to exactly one window. 
   - Hopping window: It also has fixed length but it allows windows to overlap for smoothing. Ex. a 5 minute hopping window with a 1 minute tumble will look like 10:00:00 to 10:05:00 and next window will look like 10:01:00 to 10:06:00 
   - Sliding Window: it contains all events which occurred within some interval of each other. Ex: a 5 min window will have events from 10:01:00 to 10:06:00 in the same window because they are <5 minutes apart. In Tumbling and Hoping windows these objects won't belong to the same window. 
   - Session Window: unlike others, this does not have a fixed window or duration. Instead it groups all activities for the same user for example user clicks on a website. When the user becomes inactive for some time this eindow is closed. It is used for webpage analytics.
-- Stream Joins:
+
+### Stream Joins:
   - New events may come anytime and this makes joins harder in streams. 
   - Types of stream joins:
     - Stream-stream join (window join): Events are joined based on sessionId for example. 
     - stream-table join (stream enrichment): For every event a DB is queried to find more info about that event's userId for example. This info DB can be called as a remote call, or loaded into the computer where the stream processor is running. To keep the table updated, we can use change data capture. 
     - table-table join (materialized view maintenance): Streams are collected in tables and joined.
-- Fault Tolerance of stream operators:
+
+### Fault Tolerance of stream operators:
   - Using Microbatching and Checkpointing:
     - Microbatching is breaking streams into blocks and treat each batch like a miniature batch process. This is used in spark streaming. 
     - Apache Flink ocassionally writes the state in durable storage, and recover from there.
