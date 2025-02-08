@@ -374,8 +374,8 @@ Figure: Read Skew &copy; Taken from https://jennyttt.medium.com/dirty-read-non-r
       - Atomic single-object solutions does not help because multiple objects are involved. 
       - Implement constraints using multiple objects if possible, for example using triggers or materialized views etc. 
       - If using serializable isolation level is not possible, then next best option is to use 'FOR UPDATE' clause to lock rows on which the transaction depends.
-![write_skew.png](../images/write_skew.png)
-
+![write_skew.png](images/write_skew.png)
+Figure: Write Skew &copy; Martin Kleppmann
 
 #### Serializability
 - It guarantees that the database prevents all possible race conditions.
