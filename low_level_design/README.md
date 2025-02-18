@@ -6,6 +6,17 @@ https://lucid.app/lucidchart/deefdde8-04dc-48bc-80cf-ac5ae84839af/edit?invitatio
 ![class_interface.png](images/class_interface.png)
 - Abstract Class vs Interface:
 
+# OOPS Concepts
+- objects
+- classes
+- Inheritance
+- Encapsulation
+- Abstraction
+- Polymorphism: runtime, compile time, method overloading, method overriding
+
+# SOLID Principles
+
+
 # Relationship between classes
 - Association:
   - This defines a **call** relationship.  For example, if A has an association with B, then A can call B (but B may or may not call A).
@@ -44,3 +55,29 @@ https://lucid.app/lucidchart/deefdde8-04dc-48bc-80cf-ac5ae84839af/edit?invitatio
   - ![aggregation_composition_inheritance.png](images/aggregation_composition_inheritance.png)
   - Abstract class or Interface: A **implements** B.  It is denoted using a dotted line.
     - To denote an interface just use the same class box as earlier, and mention the class name in italics.
+
+
+# Design Patterns
+- Factory
+- AbstractFactory
+- Singleton
+- Observer
+- Builder
+- Decorator
+- Adapter
+- Strategy
+- Facade
+
+# Other Concepts
+- Sequence Diagrams
+- Activity Diagrams
+- Test Cases
+- Multi-Threading: how is it implemented in Singleton Pattern?
+
+# Examples
+- Hotel Management System
+- Car Parking System
+- Elevator Management
+- 2 player games like Chess, Tic Tac Toe
+- Ticket Booking System
+- ATM
