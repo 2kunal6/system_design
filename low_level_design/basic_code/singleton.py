@@ -1,7 +1,7 @@
 class Singleton:
     def __new__(cls):
         if not hasattr(cls, 'instance'):
-            cls.instance = super(Singleton, cls)
+            cls.instance = super(Singleton)
         return cls.instance
 
 singleton_obj = Singleton()

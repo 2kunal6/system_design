@@ -58,14 +58,29 @@ https://lucid.app/lucidchart/deefdde8-04dc-48bc-80cf-ac5ae84839af/edit?invitatio
 
 
 # Design Patterns
+- Strategy:
+  - It is used when a class "has-a" another class and that class might change behaviour based on certain conditions.
+  - For example, A Order class might have to pay() to complete the order.
+    - Now, if we have different options of payment like Gpay, phonepay, etc. then we might have to subclass multiple Order classes like GpayOrder, PhonePayOrder etc. which will unnecessarily duplicate some of the common code of Order class.  Also, it breaks the DRY principle, and we might have to change multiple classes (GpayOrder, PhonePayOrder etc.) if we have to make just one change (breaks O prinicple of SOLID).
+    - Solution: Order "has-a" interface Pay with pay() and Gpay, PhonePay etc. implements this interface.
+      - Order is injected either Gpay or PhonePay and Order simply calls pay() provided by the interface.
+- Singleton:
+  - It is used when we want only one instance of a class.
+  - Uses: to limit access to a heavily used resource like DB, logging, caching data, threadpool etc.
 - Factory
+  - It is used to create classes of similar family.  For example, different shapes like circle, triangle, rectangle can have the same function draw().
+  - If we want to create these classes based on if-else conditions then, it will break the Open-Closed principle because to introduce a new class of family shape, we will have to modify the client class with a new if condition and the if-else nest might get confusing if there are 200 classes of that type for example.
+  - Solution:
+    - Create a base Factory class from which different Shape creator factory classes can implement.  These different shape creator factory classes are responsible to create different shape objects.
+    - Create a base Shape class which functions common to all shapes.  Now, different shapes inherit from this class.
+    - Now, from the calling client class, get the correct shape class using the correct factory-creator and use the functions from this.
 - AbstractFactory
-- Singleton
 - Observer
+  - It is used when multiple clients need to be updated in reaction to a state change in a class.  For example, if it starts raining then all clients need to be updated that their food delivery might be delayed.
+  - All the observer client classes might subscribe and unsubscribe to the class with the state, and they need to implement an interface with notify()
 - Builder
 - Decorator
 - Adapter
-- Strategy
 - Facade
 
 # Other Concepts
