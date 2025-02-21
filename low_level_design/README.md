@@ -78,8 +78,18 @@ https://lucid.app/lucidchart/deefdde8-04dc-48bc-80cf-ac5ae84839af/edit?invitatio
 - Observer
   - It is used when multiple clients need to be updated in reaction to a state change in a class.  For example, if it starts raining then all clients need to be updated that their food delivery might be delayed.
   - All the observer client classes might subscribe and unsubscribe to the class with the state, and they need to implement an interface with notify()
-- Builder
 - Decorator
+  - It is used to stop explosion of classes.  For example, for pizza we can have a number of basePizzas (like margerita, veggie, onionPizza etc.) and number of toppings (like extrachesse, extraOnions, extraGarlic etc.).
+  - Now if we want to provide clients with flexible selections then we need to create exponential number of classes:
+    - with 0 extra topping - margherita, veggie etc.
+    - with 1 extra topping - margheritaExtraCheese, margheritaExtraOnion, VeggieExtraCheese, VeggieExtraOnion etc.
+    - with 2 extra toppings - margheritaExtraCheeeseExtraOnion, margheritaExtraCheeeseExtraGarlic, margheritaExtraGarlicExtraOnion, ...
+    - Also if a new base pizza or topping is introduced we will have to add a lot of new classes.
+  - Decorator helps with this problem by:
+    - basePizza abstract class, from which concrete basePizza like Margherita inherits
+    - toppingDecorator which is-a (inheritance) and has-a (composition) basePizza at the same time.
+    - The is-a relationship forces the decorator to implement the ingredients() and pay() method for example.
+- Builder
 - Adapter
 - Facade
 
