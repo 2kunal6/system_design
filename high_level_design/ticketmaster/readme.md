@@ -1,0 +1,5 @@
+- To put data to our primary relational DB and elastic search, and to keep them consistent, we can use change data capture, which creates a stream of changes for changes in the DB, and these streams can be used to populate the elastic search.
+- There's a limit to how many cdc events an elastic search can handle, because elastic search also has to create indexes based on those events.
+  - one solution can be to use a queue and batching
+  - another could be to use a spark job to re-create indexes every 5 minutes, and replace the elastic search index with the newly created one.
+  - aws opensearch is aws's version of elastic search and it automatically caches results for top-k queries for each of the elastic search shards.
