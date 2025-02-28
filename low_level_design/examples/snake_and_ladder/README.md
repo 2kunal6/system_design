@@ -1,0 +1,2 @@
+- This is a multiplayer game
+- To keep track of whose turn is it next use a queue.  For players who reached destination, remove them from queue, or else put them back in the end of the queue after they are done with their move.

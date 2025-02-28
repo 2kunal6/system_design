@@ -89,11 +89,34 @@ https://lucid.app/lucidchart/deefdde8-04dc-48bc-80cf-ac5ae84839af/edit?invitatio
     - basePizza abstract class, from which concrete basePizza like Margherita inherits
     - toppingDecorator which is-a (inheritance) and has-a (composition) basePizza at the same time.
     - The is-a relationship forces the decorator to implement the ingredients() and pay() method for example.
+- Chain Of Responsibility:
+  - Problem it solves: A request comes in, and tried with level1 support first, which if it cannot handle then is sent to level2 support which if it cannot solve is sent to level3 support, and so on.
+  - In this case, instead of the client implementing the if-else conditions to escalate the request, the client just sends the request to the first handler which takes care of calling the appropriate handler.  Here handlers are chained as a list.
+  - Benefit: If we want to add a new handler, then we do not need to change the client.  The chain of handlers handle it.
+  - A handler interface is created from which concrete handlers inherit.  2 methods are required to be implemented: execute(), next_handler().  In execute(), if the current handler can't solve the request, then in the else condition it sends the request to the next_handler.
+  - Example usage: ATM, GUI, Logging system, etc.
 - Builder
 - Adapter
 - Facade
 
 # Other Concepts
+- Concurrency:
+  - use synchronized for the critical section
+  - In python it is done using lock.acquire() and lock.release(), but use of threads is a bad idea in Python for CPU intensive tasks.  In Python it is better to use multiprocessing which won't have critical section
+  - Using synchronized block() might not work in a distributed system because multiple nodes might be accessing the same seat.
+  - For distributed systems we need to use **Distributed Concurrency Control** (DCC).
+  - DCC has 2 options: 
+    - Optimistic Concurrency Control
+    - Pessimistic Concurrency Control
+    - ![distrbuted_concurrency_control.png](images/distrbuted_concurrency_control.png)
+      - &copyright; Shrayansh
+  - Types of DB Locks:
+    - Shared Lock: multiple transactions can take a shared lock -- usually used in reads
+    - Exclusive Lock: only one transaction can take an exclusive lock.  For example, only one write transaction takes an exclusive lock in which case a read (shared) lock cannot read before the exclusive lock finishes (to make sure it does not read intermediate write of exclusive lock which might not commit in the end and then our read lock would have just read the data that was not comitted after all). 
+      - To get an exclusive lock we must wait for all the other shared/exclusive locks to finish.
+  - Isolation Levels: the I in ACID
+    - Isolation Levels tell us how much concurrency is allowed in our system
+    - More details: https://github.com/2kunal6/system_design/blob/main/Data_Intensive_Applications_Martin_Kleppman.md
 - Sequence Diagrams
 - Activity Diagrams
 - Test Cases
