@@ -1,0 +1,1 @@
+to check whose turn it is, we can check it in the game class

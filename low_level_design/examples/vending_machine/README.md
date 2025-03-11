@@ -1,0 +1,3 @@
+- The machine should return to ready state after dispensing product, or aborting due to insufficient funds/products.
+- Whenever machine is in a state, only a few operations is allowed in that state.
+- To do these types of questions we use **State Design Pattern**

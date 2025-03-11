@@ -1,0 +1,34 @@
+- Capacity Estimation:
+  - Apps like TikTok will need more recommendations than Youtube because TikTok have short videos while YouTube has long ones.
+- Note: Similarity between 2 videos: create embeddings (using an embedding model) of the videos, and see how far apart they are in the vector space, and use the nearest n videos.
+  - The multi-dimensional vector storage works like coordinate systems
+  - The vector storage is arranged as cubes containing mini-kubes recursively
+  - To search we find all nearest vectors in a certain granularity, and recursively search in those cubes until the last granularity
+  - sequential scans on disk to find nearest vectors
+- Option 1 (basic):
+  - user watches video -> this info goes to user history table -> change data capture -> kafka [#Listen] -> Flink -> Hadoop (as Parquet) -> calculate recommendations using a batch job everyday (using what videos they watched/liked/commented-on, how long did they watched a video etc. -> put the recommendations in a recommendation_svc (also probably use a cache)
+  - problem with the above approach: Recommendation based on the entire day is not provided, so if an user has uploaded a video and no one watches it because they did not get a recommendation, then they might think that no one is watching it.
+- Option 2 (better):
+  - Fetch recommendations as fast as possible (as real-time as possible).  For example, if an user has seen all their recommendations, then populate the cache again before they finish up going through all the recommendations
+  - 2 step process:
+    - Retrieval:
+      - Fetch last x entities that the user interacted with
+      - Fetch last y entities that are similar to each of those x entities (closer in embedding space)
+      - For each video, keep it's most similar y videos in a DB [#PRECOMPUTED_NEIGHBOUR_INDEX]
+    - Ranking
+      - Assign a score and rank those x.y entities and return to user
+  - when a new entry is added:
+    - calculate it's embedding
+    - find it's nearest neighbours
+    - add it to [#PRECOMPUTED_NEIGHBOUR_INDEX] and update all it's nearest neighbours if it's distance is less than the farthest current nearest neighbour (use max-heap)
+  - Partitioning:
+    - Recommendation Servers:
+      - Using sticky sessions might help so that the recommendation servers can keep track of all the activities of what the user did with the previously provided recommendations
+      - read more: to do this do we need consistent hashing?
+    - Vector DB:
+      - Range based Partitioning on the vector hash: Take all nearest cubes in the vector DB and put all of them in the same partition
+    - [#PRECOMPUTED_NEIGHBOUR_INDEX]: on entity_id
+    - For hot partitions use read replicas
+  - To filter out seen entities, we can use a bloom filter
+    - add a consumer group to update the bloom filter from the kafka topic that listens to user clicks [#Listen]
+    - keep the bloom filter in memory, and also persist some checkpoints to recover fast from failure

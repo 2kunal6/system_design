@@ -95,9 +95,29 @@ https://lucid.app/lucidchart/deefdde8-04dc-48bc-80cf-ac5ae84839af/edit?invitatio
   - Benefit: If we want to add a new handler, then we do not need to change the client.  The chain of handlers handle it.
   - A handler interface is created from which concrete handlers inherit.  2 methods are required to be implemented: execute(), next_handler().  In execute(), if the current handler can't solve the request, then in the else condition it sends the request to the next_handler.
   - Example usage: ATM, GUI, Logging system, etc.
-- Builder
-- Adapter
-- Facade
+- Builder:
+  - build an object.  For example, a generic builder can build gamingComputer or DesktopComputer using the same build functions but with different config for different computer types.
+- Adapter:
+  - provides an interface that calls another original object 
+- Facade: Hides complex logic from client
+  - facade vs adapter design pattern
+  - facade vs proxy design pattern
+- Null Object Pattern: 
+  - abstract car interface with drive() method
+  - concrete class sedan and SUV implements it
+  - if user/client requests for hatchback then it will return null because it is not available
+  - now if client calls car.drive(), it will give null pointer exception.
+  - to prevent the above null pointer exception, create a nullConcreteClass which is sent to the user when it's requested car type does not exist.  Now, if client calls car.drive() it will be calling nullConcreteClass's drive() method which does nothing, but it prevents null pointer exception error.
+- State Design Pattern:
+  - Whenever there are multiple states.  For example in vending machine, or TV.
+  - interface state with handleRequest() method -> concrete classes = readyState, productSelectedState, PaymentPendingState, DispensingState, OutOfStockState
+  - VendingMachineContext has state(which is the interface created earlier), and we set the state in this context.  Now when we call the handleRequest in this context, we delegate the call to the correct concrete class.
+  - Option 2 for implementation:
+    - create an interface state with all ops possible
+    - Now all concrete states implement this interface and implement all these ops.
+- Composite Design Pattern:
+  - File system
+  - Calculator: TODO
 
 # Other Concepts
 - Concurrency:
