@@ -17,6 +17,9 @@ class Task:
         self.task_id = task_id
         self.assignee = None
         self.description = None
+        self.completion_date = None
+        self.status = None
+
     def __str__(self):
         return str(self.task_id)
 
